@@ -1,0 +1,192 @@
+---
+title: "EDLD 652 Final Project Draft"
+author: "Ksenia Gordeeva, Rebeccca Gordon, Amy Warnock"
+date: "2/21/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(edld652)
+library(tidyverse)
+library(here)
+library(janitor)
+library(skimr)
+```
+
+
+```{r list-datasets}
+list_datasets()
+```
+
+```{r download-all-documentation}
+# get_documentation("EDFacts_acgr_lea_2011_2019")
+# get_documentation("EDFacts_acgr_sch_2011_2019")
+# get_documentation("EDFacts_math_achievement_lea_2010_2019")
+# get_documentation("EDFacts_math_achievement_sch_2010_2019")
+# get_documentation("EDFacts_math_participation_lea_2013_2019")
+# get_documentation("EDFacts_math_participation_sch_2013_2019")
+# get_documentation("EDFacts_rla_achievement_lea_2010_2019")
+# get_documentation("EDFacts_rla_achievement_sch_2010_2019")
+# get_documentation("EDFacts_rla_participation_lea_2013_2019")
+# get_documentation("EDFacts_rla_participation_sch_2013_2019")
+# get_documentation("NCES_CCD_fiscal_district_2010")
+# get_documentation("NCES_CCD_fiscal_district_2011")
+# get_documentation("NCES_CCD_fiscal_district_2012")
+# get_documentation("NCES_CCD_fiscal_district_2013")
+# get_documentation("NCES_CCD_fiscal_district_2014")
+# get_documentation("NCES_CCD_fiscal_district_2015")
+# get_documentation("NCES_CCD_fiscal_district_2016")
+# get_documentation("NCES_CCD_fiscal_district_2017")
+# get_documentation("NCES_CCD_fiscal_district_2018")
+# get_documentation("NCES_CCD_nonfiscal_district_2017_2021_directory")
+# get_documentation("NCES_CCD_nonfiscal_district_2017_2021_disabilities")
+# get_documentation("NCES_CCD_nonfiscal_district_2017_2021_english_learners")
+# get_documentation("NCES_CCD_nonfiscal_district_2017_2021_membership")
+# get_documentation("NCES_CCD_nonfiscal_district_2017_2021_staff")
+# get_documentation("NCES_CCD_nonfiscal_school_2017_2020_lunch_program")
+# get_documentation("NCES_CCD_nonfiscal_school_2017_2020_school_characteristics")
+# get_documentation("NCES_CCD_nonfiscal_school_2017_2020_staff")
+# get_documentation("NCES_CCD_nonfiscal_school_2017_2021_directory")
+# get_documentation("NCES_CCD_nonfiscal_school_2017_membership")
+# get_documentation("NCES_CCD_nonfiscal_school_2018_membership")
+# get_documentation("NCES_CCD_nonfiscal_school_2019_membership")
+# get_documentation("NCES_CCD_nonfiscal_school_2020_membership")
+# get_documentation("NCES_CCD_nonfiscal_state_2017_2020_directory")
+# get_documentation("NCES_CCD_nonfiscal_state_2017_2020_staff")
+# get_documentation("NCES_CCD_nonfiscal_state_2017_2021_membership")
+```
+
+```{r rebecca-datawrangling}
+mathlea_10 <- get_data("EDFacts_math_achievement_lea_2010_2019")
+
+rlalea_10 <- get_data("EDFacts_rla_achievement_lea_2010_2019")
+
+skim(mathlea_10)
+skim(rlalea_10)
+
+mathlea_10 %>% tabyl(ECD_MTHHSPCTPROF)
+mathle_10 %>% tabyl(LEP_MTHHSPCTPROF)
+mathlea_10 %>% tabyl(HOM_MTHHSPCTPROF)
+mathlea_10 %>% tabyl(MIG_MTHHSPCTPROF)
+mathlea_10 %>% tabyl(CWD_MTHHSPCTPROF)
+
+```
+
+```{r amy-prelimexploration}
+fiscal_lea_10 <- get_data("NCES_CCD_fiscal_district_2010")
+
+View(rlalea_10)
+View(fiscal_lea_10)
+
+colnames(rlalea_10)
+
+rlalea_10  %>% 
+  ggplot(aes(YEAR, ALL_RLA03PCTPROF)) +
+             geom_point()
+
+#This was when I realized the file didn't contain data from 2010 to 2019 (which I had thought initially for some reason). It only includes data from 2010.
+
+unique(rlalea_10$YEAR)
+skim(rlalea_10)
+
+# Going to need to clean these 
+rlalea_10 %>%
+  group_by(ALL_RLA03PCTPROF) %>% 
+  summarize(n = n())
+
+# Prelim exploration for fiscal file and local revenue
+skim(fiscal_lea_10)
+
+# Total local revenue (need to adjust x-axis)
+fiscal_lea_10 %>% 
+  ggplot(aes(TLOCREV)) +
+  geom_histogram()
+
+fiscal_lea_10 %>%
+  group_by(LEAID) %>% 
+  summarize(TLOCREV) 
+
+# Exploring local revenue solely from property taxes
+fiscal_lea_10 %>% 
+  ggplot(aes(T06)) +
+  geom_histogram()
+
+fiscal_lea_10 %>%
+  group_by(LEAID) %>% 
+  summarize(T06) 
+
+# Local funding in property tax per student
+fiscal_lea_10 <- fiscal_lea_10 %>% 
+  mutate(taxperstu = T06/V33)
+
+fiscal_lea_10$taxperstu
+
+fiscal_lea_10 %>% 
+  ggplot(aes(taxperstu)) +
+  geom_histogram()
+
+fiscal_lea_10 %>%
+  group_by(LEAID) %>% 
+  summarize(taxperstu)
+
+# I don't think this works b/c I need to clean values for the property tax variable before calculating tax per student
+fiscal_lea_10 %>%
+  summarize(min_taxperstu = min(taxperstu),
+            max_taxperstu = max(taxperstu)) 
+
+```
+```{r ksenia-dataxploration}
+fiscal2010 <- get_data("NCES_CCD_fiscal_district_2010")
+colnames(fiscal2010)
+skim(fiscal2010)
+
+# Total spendings by state
+total <-fiscal2010 %>% 
+  group_by(STNAME) %>%
+  summarise(TOTALEXP = sum(TOTALEXP))
+
+total  %>%
+  ggplot(aes(TOTALEXP, STNAME)) +
+  geom_col()
+
+#in descending order
+total  %>%
+  ggplot(aes(TOTALEXP, fct_reorder(STNAME, TOTALEXP))) +
+  geom_col() 
+
+#spending on instruction by state 
+instruction <- fiscal2010 %>%
+  group_by(STNAME) %>%
+      summarise(E13 = sum(E13))
+
+instruction  %>%
+  ggplot(aes(E13, STNAME)) +
+  geom_col()
+
+instruction  %>%
+  ggplot(aes(E13, fct_reorder(STNAME, E13))) +
+  geom_col()
+#New York spends more on instruction, while CA spends the most total
+
+#spending on textbooks by state 
+textbooks <- fiscal2010 %>%
+  group_by(STNAME) %>%
+      summarise(V93 = sum(V93))
+
+textbooks  %>%
+  ggplot(aes(V93, fct_reorder(STNAME, V93))) +
+  geom_col()
+
+#spending on Special Ed teachers
+SpEd <- fiscal2010 %>%
+  group_by(STNAME) %>%
+      summarise(Z36 = sum(Z36))
+
+SpEd  %>%
+  ggplot(aes(Z36, fct_reorder(STNAME, Z36))) +
+  geom_col()
+
+#next step - figure out how to show those spendings per state as a proportion of the total spending if that state
+```
