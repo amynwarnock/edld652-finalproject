@@ -27,7 +27,16 @@ library(viridis)
 library(patchwork)
 library(albersusa)
 library(ggridges)
-
+#install.packages("biscale")
+library(biscale)
+install.packages("cowplot")
+library(cowplot)
+library(grid)
+#install.packages("gridtext")
+library(gridtext)
+install.packages("usmap")
+library(usmap)
+library(colorblindr)
 ```
 
 ```{r load-datasets}
@@ -284,14 +293,16 @@ ggplot(data = dat2, aes(geometry = geometry,
 
 **Research Question:** 
 
-What drives current expenditure on education? How is funding allocated by state and how do the funding allocations correlate with eh student performance (graduation rates and/or test scores)? Does cross-state variation in expenditure explain the cross-state variation in education outcomes? More specifically, I might look at the following:
+What drives current expenditure on education? How is funding allocated by state and how do the funding allocations correlate with eh student performance (test scores)? Does cross-state variation in expenditure explain the cross-state variation in education outcomes? More specifically, I address the following questions:
 
-- What percentage of expenditure accounts for instruction/ textbooks/ technology-related equipment & services/ instructional equipment?
-- What are the gross amounts spent on those categories?
-- How do those percentages/ gross amounts correlate with the diversity of the student population/portion of white students in school?
+-- What are the gross amounts of total expenditure and how do they vary by state?
+- What amount of the total expenditure accounts for instruction, textbooks & special education? How do those allocations vary by state?
 - Does increased spending on any of the categories correlate with increased students’ performance?  
-- Can higher teachers’ salaries result in better test scores?
-- What amount of funding is spent on special education programs and how that correlates with performance of students with disabilities? 
+- Can higher teachers’ salaries result in better test scores? (i.e. Does the spending on Instruction positively correlate with performance on standardized tests)
+- What amount of funding is spent on special education and how that correlates with performance of students with disabilities? 
+
+Not addressed at this point (yet?): 
+- How do those percentages/ gross amounts correlate with the diversity of the student population/portion of white students in school?
 
 **Datasets:**   
 
@@ -299,57 +310,827 @@ What drives current expenditure on education? How is funding allocated by state 
 - EDFacts_math_achievement_lea_2010_2019  
 - NCES_CCD_fiscal_district_2010
 
-```{r ksenia-dataxploration}
-colnames(fiscal2010)
+```{r ksenia-fiscaldata}
 skim(fiscal2010)
+regions <- import(here("data", "us_census_bureau_regions_and_divisions.csv"), setclass = "tbl_df") %>% 
+  rename(`STNAME` = State,
+         STABBR = `State Code`) 
 
 # Total spendings by state
 total <-fiscal2010 %>% 
   group_by(STNAME) %>%
-  summarise(TOTALEXP = sum(TOTALEXP))
+  summarise(TOTALEXP = sum(TOTALEXP),
+            V33 = sum(V33)) 
 
-total  %>%
-  ggplot(aes(TOTALEXP, STNAME)) +
-  geom_col()
+total2 <- left_join(total, regions, by = "STNAME")
 
-#in descending order
-total  %>%
-  ggplot(aes(TOTALEXP, fct_reorder(STNAME, TOTALEXP))) +
-  geom_col() 
+#Change scale of total spending
+total2$TOTALEXP_B  <- total2$TOTALEXP/1000000000
+
+#calculating the total spending per student
+total2 <- total2 %>% 
+  mutate(spend_per_stu = TOTALEXP/V33,
+         spend_per_stu_k = (TOTALEXP/V33)/1000)
 
 #spending on instruction by state 
 instruction <- fiscal2010 %>%
   group_by(STNAME) %>%
-      summarise(E13 = sum(E13))
+      summarise(E13 = sum(E13), 
+                V33 = sum(V33))
 
-instruction  %>%
-  ggplot(aes(E13, STNAME)) +
-  geom_col()
+instruction2 <- left_join(instruction, regions, by = "STNAME")
 
-instruction  %>%
-  ggplot(aes(E13, fct_reorder(STNAME, E13))) +
-  geom_col()
-#New York spends more on instruction, while CA spends the most total
+#Change scale of total spending on instruction
+instruction2$E13_B  <- instruction2$E13/1000000000
 
-#spending on textbooks by state 
-textbooks <- fiscal2010 %>%
-  group_by(STNAME) %>%
-      summarise(V93 = sum(V93))
-
-textbooks  %>%
-  ggplot(aes(V93, fct_reorder(STNAME, V93))) +
-  geom_col()
+#calculating instruction spending per student
+instruction2 <- instruction2 %>% 
+  mutate(instr_per_stu = E13/V33,
+         instr_per_stu_k = (E13/V33)/1000)
 
 #spending on Special Ed teachers
 SpEd <- fiscal2010 %>%
   group_by(STNAME) %>%
-      summarise(Z36 = sum(Z36))
+      summarise(Z36 = sum(Z36), 
+                V33 = sum(V33))
 
-SpEd  %>%
-  ggplot(aes(Z36, fct_reorder(STNAME, Z36))) +
-  geom_col()
+SpEd2 <- left_join(SpEd, regions, by = "STNAME")
 
-#next step - figure out how to show those spendings per state as a proportion of the total spending if that state
+#removing the states with no data on Special Ed spending
+SpEd2 <- SpEd2[SpEd2$Z36 >= 0, ]
+
+#Change scale of total spending on SPecial Ed
+SpEd2$Z36_B  <- SpEd2$Z36/1000000000
+
+#spending on textbooks by state 
+textbooks <- fiscal2010 %>%
+  group_by(STNAME) %>%
+      summarise(V93 = sum(V93),
+                V33 = sum(V33))
+textbooks2 <- left_join(textbooks, regions, by = "STNAME")
+
+#removing the states with no data on textbook spending
+textbooks2 <- textbooks2[textbooks2$V93 >= 0, ]
+
+#Change scale of total spending on textbooks
+textbooks2$V93_M  <- textbooks2$V93/1000000
+
+#calculating textbook spending per student
+textbooks2 <- textbooks2 %>% 
+  mutate(book_per_stu = V93/V33)
+
+```
+
+```{r ksenia-testdata}
+#getting reading and language arts data
+rla <- rlalea_10 %>% 
+  select(YEAR, 
+         STNAM, 
+         ALL_RLA00PCTPROF,
+         MWH_RLA00PCTPROF,
+         CWD_RLA00PCTPROF) %>% 
+  rename(`STNAME` = STNAM) %>% 
+  mutate(STNAME = str_to_title(STNAME), 
+         (across(ALL_RLA00PCTPROF:CWD_RLA00PCTPROF, 
+                 ~replace(., . %in% c("PS", 
+                                      "n/a",	
+                                      "LT50",	
+                                      "LE5",	
+                                      "LE20",	
+                                      "LE10",	
+                                      "GE99",	
+                                      "GE95",	
+                                      "GE90",	
+                                      "GE80",	
+                                      "GE50"), NA))))
+
+#Mean rla scores for all students
+rla <- rla %>% 
+  tidyr::separate(ALL_RLA00PCTPROF, c("all_lower", "all_upper"), sep = "-") %>% 
+  mutate(
+    all_upper = ifelse(is.na(all_upper), all_lower, all_upper),
+    all_lower = as.numeric(all_lower),
+    all_upper = as.numeric(all_upper)
+    ) %>% 
+  rowwise() %>% 
+  mutate(mean_rla_all = mean(c(all_lower, all_upper))) %>% 
+  ungroup()
+
+#Mean rla scores for white students
+rla <- rla %>% 
+  tidyr::separate(MWH_RLA00PCTPROF, c("wh_lower", "wh_upper"), sep = "-") %>% 
+  mutate(
+    wh_upper = ifelse(is.na(wh_upper), wh_lower, wh_upper),
+    wh_lower = as.numeric(wh_lower),
+    wh_upper = as.numeric(wh_upper)
+    ) %>% 
+  rowwise() %>% 
+  mutate(meanf_rla_wh = mean(c(wh_lower, wh_upper))) %>% 
+  ungroup()
+
+# mean rla scores for students with disabilities
+rla <- rla %>% 
+  tidyr::separate(CWD_RLA00PCTPROF, c("dis_lower", "dis_upper"), sep = "-") %>% 
+  mutate(
+    dis_upper = ifelse(is.na(dis_upper), dis_lower, dis_upper),
+    dis_lower = as.numeric(dis_lower),
+    dis_upper = as.numeric(dis_upper)
+    ) %>% 
+  rowwise() %>% 
+  mutate(mean_rla_dis = mean(c(dis_lower, dis_upper))) %>% 
+  ungroup()
+
+rla_new <- rla %>% 
+  select(YEAR, 
+         STNAME,
+         contains("mean"))
+
+#getting math data
+math <- mathlea_10 %>% 
+  select(YEAR, 
+         STNAM, 
+         ALL_MTH00PCTPROF,
+         MWH_MTH00PCTPROF,
+         CWD_MTH00PCTPROF) %>% 
+  rename(`STNAME` = STNAM) %>%
+  mutate(STNAME = str_to_title(STNAME), 
+         (across(ALL_MTH00PCTPROF:CWD_MTH00PCTPROF, 
+                 ~replace(., . %in% c("PS", 
+                                      "n/a",	
+                                      "LT50",	
+                                      "LE5",	
+                                      "LE20",	
+                                      "LE10",	
+                                      "GE99",	
+                                      "GE95",	
+                                      "GE90",	
+                                      "GE80",	
+                                      "GE50"), NA))))
+
+#Mean math scores for all students
+math <- math %>% 
+  tidyr::separate(ALL_MTH00PCTPROF, c("all_lower", "all_upper"), sep = "-") %>% 
+  mutate(
+    all_upper = ifelse(is.na(all_upper), all_lower, all_upper),
+    all_lower = as.numeric(all_lower),
+    all_upper = as.numeric(all_upper)
+    ) %>% 
+  rowwise() %>% 
+  mutate(mean_math_all = mean(c(all_lower, all_upper))) %>% 
+  ungroup()
+
+#Mean math scores for white students
+math <- math %>% 
+  tidyr::separate(MWH_MTH00PCTPROF, c("wh_lower", "wh_upper"), sep = "-") %>% 
+  mutate(
+    wh_upper = ifelse(is.na(wh_upper), wh_lower, wh_upper),
+    wh_lower = as.numeric(wh_lower),
+    wh_upper = as.numeric(wh_upper)
+    ) %>% 
+  rowwise() %>% 
+  mutate(mean_math_wh = mean(c(wh_lower, wh_upper))) %>% 
+  ungroup()
+
+# mean mathscores for students with disabilities
+math <- math %>% 
+  tidyr::separate(CWD_MTH00PCTPROF, c("dis_lower", "dis_upper"), sep = "-") %>% 
+  mutate(
+    dis_upper = ifelse(is.na(dis_upper), dis_lower, dis_upper),
+    dis_lower = as.numeric(dis_lower),
+    dis_upper = as.numeric(dis_upper)
+    ) %>% 
+  rowwise() %>% 
+  mutate(mean_math_dis = mean(c(dis_lower, dis_upper))) %>% 
+  ungroup()
+
+math_new <- math %>% 
+  select(YEAR, 
+         STNAME,
+         contains("mean"))
+
+scores <- full_join(math_new, 
+                    rla_new, 
+                              by = "STNAME")
+
+#dataset with all the scores and the total spending on Education
+scores_spending <- full_join(scores, 
+                              total2,
+                              by = "STNAME")
+
+#dataset with all the scores and the total spending on Instruction
+scores_instruction <- full_join(scores, 
+                              instruction2,
+                              by = "STNAME")
+
+#dataset with all the scores and the total spending on Special Ed
+scores_SpEd <- full_join(scores, 
+                              SpEd2,
+                              by = "STNAME")
+
+#dataset with all the scores and the total spending on textbooks
+scores_books <- full_join(scores, 
+                              textbooks2,
+                              by = "STNAME")
+
+```
+
+```{r ksenia-totalspending}
+total2  %>%
+  ggplot(aes(TOTALEXP_B, fct_reorder(STNAME, TOTALEXP_B))) +
+  geom_col(aes(fill = Region),
+           alpha = 0.9) +
+  scale_fill_OkabeIto() + 
+  scale_x_continuous(expand = c(0, 0), 
+                     limits = c(0, 75),
+                     breaks = c(0, 10, 20, 30, 40, 50, 60, 70), 
+                     labels = c("0", "10 billion", "20 billion", "30 billion", "40 billion", "50 billion", "60 billion", "70 billion")) + 
+  labs(title = "Total Spending on Education by State",
+       y = "State",
+       x = "Total Yearly Spending, in USD",
+       caption = "Source: National Center for Education Statistics", 
+       fill = "Region") + 
+  geom_text(
+    aes(TOTALEXP_B, STNAME, label = paste (round(TOTALEXP_B, 2), " B.")),
+    nudge_x = 0.9,
+    size = 2
+  ) +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank()) 
+
+#An average spending by the region
+total_rg_avg <- total2 %>% 
+  group_by(Region) %>% 
+  summarize(rg_avg = mean(TOTALEXP_B))
+
+total_rg_avg  %>%
+  ggplot(aes(rg_avg, fct_reorder(Region,rg_avg))) +
+  geom_col(alpha = 0.9) +
+  scale_fill_OkabeIto() + 
+  scale_x_continuous(expand = c(0, 0), 
+                     limits = c(0, 20),
+                     breaks = c(0, 5, 10, 15), 
+                     labels = c("0", "5 billion", "10 billion", "15 billion")) + 
+  labs(title = "Average Total Spending on Education by Region",
+       y = "Region",
+       x = "Avergae Yearly Spending, in USD",
+       caption = "Source: National Center for Education Statistics") + 
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank()) 
+```
+*TODO: format 'by region' plot if keeping it*
+
+When looking at individual states, we can observe that California has the largest total spending on Education, followed by New York, and Texas. North Dakota and South Dakota yield the smallest total expensiture on education, with both states spending less $1.5B per year. The raw amounts of total spending don't give us a full picture, because states vary by population size and the number of students enrolled in high schools. Thus, it is beneficial to look at the expenditure per single student. 
+```{r ksenia-total-perstudent} 
+#plotting total spending per student by state
+total2  %>%
+  ggplot(aes(spend_per_stu_k, fct_reorder(STNAME, spend_per_stu_k))) +
+  geom_col(aes(fill = Region),
+           alpha = 0.9) +
+  scale_fill_OkabeIto() + 
+  scale_x_continuous(expand = c(0, 0), 
+                     limits = c(0, 30),
+                     breaks = c(0, 5, 10, 15, 20, 25), 
+                     labels = c("0", "5K", "10K", "15K", "20K", "25K")) + 
+  labs(title = "Total Spending on Education Per Single Student by State",
+       y = "State",
+       x = "Total Yearly Spending Per Student, in USD",
+       caption = "Source: National Center for Education Statistics", 
+       fill = "Region") + 
+  geom_text(
+    aes(spend_per_stu_k, STNAME, label = paste (round(spend_per_stu_k, 2), " K")),
+    nudge_x = 0.45,
+    size = 2) +
+  geom_vline(aes(xintercept = mean(total2$spend_per_stu_k)), 
+             data = total2, 
+             linetype = 'dashed',
+             size = 0.6,
+             alpha = 1, 
+             color = "gray60") +
+  geom_label(data = total2, 
+             aes(x = mean(total2$spend_per_stu_k)+1.6, 
+                 y = 10,
+                 label = "Avg. Spending
+Per Student 
+in the US = 
+$ 12,977",
+                 fill = NULL), 
+                 color = "gray60",
+                 size = 4,
+                 fontface = "italic",
+                 label.size = NA)  +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank()) 
+
+#calculating an average spending per student by the region
+total_rg_avg_stu <- total2 %>% 
+  group_by(Region) %>% 
+  summarize(rg_avg_stu = mean(spend_per_stu_k))
+
+#plotting by region
+total_rg_avg_stu  %>%
+  ggplot(aes(rg_avg_stu, fct_reorder(Region,rg_avg_stu))) +
+  geom_col(alpha = 0.9) +
+  scale_fill_OkabeIto() + 
+  scale_x_continuous(expand = c(0, 0), 
+                     limits = c(0, 20),
+                     breaks = c(0, 5, 10, 15), 
+                     labels = c("0", "5K", "10K", "15K")) + 
+  labs(title = "Average Total Spending on Education per Student by Region",
+       y = "Region",
+       x = "Avergae Yearly Spending per Student, in USD",
+       caption = "Source: National Center for Education Statistics") + 
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank()) 
+```
+*TO_DO: format the 'by region' plot, if keeping it*
+*TODO: figure out how to remove 'a's from the legend boxes*
+
+District of Columbia spent the most total on a single student (\$25,613) in 2010, followed by New York (\$21,770) and Vermont (\$19,541). All Northeastern states are in the top 15 states with highest spending per student, which is reflected in the second plot demonstrating that in Northeastern states, an average spending per single students is the highest and equals \$17,194. 
+
+The three states with the lowest spending per students are Idaho (\$7,798), Utah (\$8,040), and Arizona (\$8,999), which are all Western States. Compared to other regions, a Western state spends the least per student on average (\$11,745). It can be observed in the plot above that all Western states except Wyoming and Alaska spend less on a single student that the national mean. 
+
+The observed patterns can also be vizualized in a map: 
+```{r ksenia-total-map}
+#Map visualization for the total spending per student by state
+us2 <- usa_sf()
+us2 <- rename(us2, STABBR = iso_3166_2)
+total_map <- inner_join(total2, us2, by = "STABBR")
+
+total_map %>% 
+	ggplot(aes(geometry = geometry, 
+						 fill = spend_per_stu_k,
+						 color = "transparent"), 
+				 alpha = 0.9) + 
+	geom_sf(color = "white", size = 0.1) +
+  guides(fill = guide_colorsteps(barwidth = 15,
+                                 barheight = .5,
+                                 title.position = "top",
+                                 title.hjust = .5,
+                                 title = "Total Sending\n[1000 US$ / Year]")) +
+  scale_fill_viridis_c(option = "inferno",
+                       breaks = c(0,5,10,15,20, 25, 30),
+                       limits = c(0, 30),
+                       begin = 0) +
+	labs(title = "State total spendings on education per student",
+			 subtitle = "2010",
+			 caption = "Source: National Center for Education Statistics") +
+  theme_void() + 
+  theme(legend.position = "bottom",
+        plot.title = element_text(hjust = .08),
+        plot.subtitle = element_text(hjust = .17))
+```
+```{r ksenia-instruction}
+#Plotting the total Spending on Instruction by state
+instruction2  %>%
+  ggplot(aes(E13_B, fct_reorder(STNAME, E13_B))) +
+  geom_col(aes(fill = Region),
+           alpha = 0.9) +
+  scale_fill_OkabeIto() + 
+  scale_x_continuous(expand = c(0, 0), 
+                     limits = c(0, 42),
+                     breaks = c(0, 10, 20, 30, 40), 
+                     labels = c("0", "10 billion", "20 billion", "30 billion", "40 billion")) + 
+  labs(title = "Total Spending on Instruction by State",
+       y = "State",
+       x = "Total Yearly Spending, in USD",
+       caption = "Source: National Center for Education Statistics", 
+       fill = "Region") + 
+  geom_text(
+    aes(E13_B, STNAME, label = paste (round(E13_B, 2), " B.")),
+    nudge_x = 0.85,
+    size = 2
+  ) +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank()) 
+```
+```{r ksenia-instruction-perstudent}
+#plotting spending on instruction per student by state 
+instruction2  %>%
+  ggplot(aes(instr_per_stu_k, fct_reorder(STNAME, instr_per_stu_k))) +
+  geom_col(aes(fill = Region),
+           alpha = 0.9) +
+  scale_fill_OkabeIto() + 
+  scale_x_continuous(expand = c(0, 0), 
+                     limits = c(0, 20),
+                     breaks = c(0, 5, 10, 15), 
+                     labels = c("0", "5K", "10K", "15K")) + 
+  labs(title = "Total Spending on Instruction Per Single Student by State",
+       y = "State",
+       x = "Total Yearly Spending on Instruction Per Student, in USD",
+       caption = "Source: National Center for Education Statistics", 
+       fill = "Region") + 
+  geom_text(
+    aes(instr_per_stu_k, STNAME, label = paste (round(instr_per_stu_k, 2), " K")),
+    nudge_x = 0.45,
+    size = 2) +
+  geom_vline(aes(xintercept = mean(instruction2$instr_per_stu_k)), 
+             data = instruction2, 
+             linetype = 'dashed',
+             size = 0.6,
+             alpha = 1, 
+             color = "gray60") +
+  geom_label(data = instruction2, 
+             aes(x = mean(instruction2$instr_per_stu_k)+1.1, 
+                 y = 10,
+                 label = "Avg. Spending
+on Istruction
+Per Student 
+in the US = 
+$ 6,531",
+                 fill = NULL), 
+                 color = "gray60",
+                 size = 4,
+                 fontface = "italic",
+                 label.size = NA)  +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank()) 
+```
+*TODO: figure out how to remove 'a's from the legend boxes*
+
+California, New York, and Texas are the leaders in the spending on instruction, which is to be expected given the states' population sizes. However, while California has the highest total spending on education, New York spends the most total on Instruction. South Dakota, North Dakota, and District of Columbia spend the least total on Instruction. 
+
+When exploring the data for the spending on instruction per individual student, we see that New York spends the most (\$12,693). That exceeds the total instructional spending per student of the two runner-up states, New Jersey with \$9,706 and Vermont with \$9,555. Such a drastic increase in New York's spending can be correlated with the average teacher's salary in that state. All Northeastern state are in the top 15 highest spenders, as was the case with the total spending per student. Interestingly, District of Columbia that spent the most total per student in 2010, is only in the 9th place when it comes to instructional expenses only; DC reported \$8,194 in average instructional expenses per student. 
+The observed patterns can also be vizualized in a map: 
+```{r ksenia-instruction-map}
+#Map visualization for the instructional spending per student by state
+instr_map <- inner_join(instruction2, us2, by = "STABBR")
+
+instr_map %>% 
+	ggplot(aes(geometry = geometry, 
+						 fill = instr_per_stu_k,
+						 color = "transparent"), 
+				 alpha = 0.9) + 
+	geom_sf(color = "white", size = 0.1) +
+  guides(fill = guide_colorsteps(barwidth = 15,
+                                 barheight = .5,
+                                 title.position = "top",
+                                 title.hjust = .5,
+                                 title = "Instructional Sending\n[1000 US$ / Year]")) +
+  scale_fill_viridis_c(option = "inferno",
+                       breaks = c(0, 3, 6, 9, 12, 15),
+                       limits = c(0, 15),
+                       begin = 0) +
+	labs(title = "State instructional spendings per student",
+			 subtitle = "2010",
+			 caption = "Source: National Center for Education Statistics") +
+  theme_void() + 
+  theme(legend.position = "bottom",
+        plot.title = element_text(hjust = .08),
+        plot.subtitle = element_text(hjust = .17))
+```
+```{r ksenia-bivariate-total-RLA}
+## biscale map
+biscale <- 
+  scores_spending %>% 
+  group_by(STNAME) %>% 
+  summarize(
+    rla = mean(mean_rla_all, na.rm=TRUE),
+    spend = mean(spend_per_stu_k, na.rm=TRUE)
+  ) %>% 
+  bi_class(x = rla, y = spend, style = "quantile", dim = 3)
+
+
+names(biscale)[1]<-"full"
+map_join<- biscale%>%left_join(statepop, by= "full") 
+
+
+p2<-plot_usmap(data = map_join, values = "bi_class", labels = TRUE, label_color = "white")   +
+  bi_scale_fill(pal = "DkCyan", dim = 3, guide = F) +
+  scale_x_continuous(breaks = NULL) + 
+  scale_y_continuous(breaks = NULL) +
+  theme(
+    plot.title = element_text(margin = margin(b = 8), 
+                              color = "#ffffff",face = "bold",size = 9,
+                              hjust = 0.5,
+                              family = "Arial"),
+    plot.subtitle = element_text(margin = margin(t=10,b = 25), 
+                                 color = "#ffffff", size = 6, family = "Arial",
+                                 hjust = 0.5),
+    plot.caption =  element_text(margin = margin(t = 20), 
+                                 color = "#ffffff", size = 5, family = "Arial",
+                                 hjust = 0.95),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    legend.title = element_blank(),
+    axis.text.x    = element_blank(),
+    axis.text.y    = element_blank(),
+    panel.background = element_blank(), 
+    panel.grid.major = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(), 
+    plot.background = element_rect(fill = "#f3f3f3", color = NA),
+    panel.border = element_blank(),
+    plot.margin = unit(c(1, 1, 1, 1), "cm"),
+    axis.ticks = element_blank()
+  ) 
+
+legend_US<- 
+  bi_legend(pal = "DkCyan",
+            dim = 3,
+            xlab = "Proficiency in RLA",
+            ylab = "Spend total",
+            size = 20) +
+  theme(rect = element_rect(fill = "grey10"),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        plot.background = element_rect(fill = "#f3f3f3", color = NA),
+        axis.title.x = element_text(size = 10,
+                                    color = "#a1a1a1",
+                                    face = "bold"),
+        axis.title.y = element_text(size = 10,
+                                    color = "#a1a1a1",
+                                    face = "bold"),
+        legend.text = element_text(size = 5),
+        legend.text.align = 0)
+
+
+ggdraw() +
+  draw_plot(p2, 0, 0, 1, 1) +
+  draw_plot(legend_US, 0, 0.1, 0.2, 0.2) +
+  draw_label("Source:National Center for Education Statistics)", 
+             color = "#a1a1a1", size = 7.5, angle = 0, x = 0.9, y = 0.05) +
+  draw_label("In which states the total spending on Education per student positively affects the average performance in RLA?", 
+             color = "#000000", size = 17, angle = 0, x =0.5, y = 0.97, fontface = "bold") +
+  draw_label("Bivariate map shwoing the combination of the total spending on education per student and the average demonstrated proficiency in Reading and Langguage Arts", 
+             color = "#000000", size = 14, angle = 0, x =0.5, y = 0.92) +
+  theme(plot.background = element_rect(fill = "#f3f3f3", color = NA)) 
+```
+We can see that the increased total spending on a student person resulted in increased proficiency test scores in such states Illinois, Ohio, New York, Maryland, Connecticut, New Hampshire, and District of Columbia. Aligning with this trend are the states such as Arizona, Oklahoma, Missouri, Tennessee, Mississippi, and Florida, where the total spend on Education was the lowest relative to other states, and the students demonstrated the lowest scores in RLA. 
+However, this trend is not categorical across all the states. States like Texas, Idaho, Utah, Colorado, and Georgia demonstrated relatively high RLA scores while they spend less per student. At the same time, Maine exhibits the opposite pattern: the high total spending on Education in those states negatively correlates with the students' RLA proficiency. 
+
+*TODO: do the comaprison of total spendings for math scores*
+
+Next, comparing math scores with spending on instruction only 
+```{r ksenia-bivariate-intruction-math}
+biscale2 <- 
+  scores_instruction %>% 
+  group_by(STNAME) %>% 
+  summarize(
+    math = mean(mean_math_all, na.rm=TRUE),
+    instr = mean(instr_per_stu_k, na.rm=TRUE)
+  ) %>% 
+  bi_class(x = math, y = instr, style = "quantile", dim = 3)
+
+
+names(biscale2)[1]<-"full"
+map_join2<- biscale2%>%left_join(statepop, by= "full") 
+
+
+p3<-plot_usmap(data = map_join2, values = "bi_class", labels = TRUE, label_color = "white")   +
+  bi_scale_fill(pal = "DkCyan", dim = 3, guide = F) +
+  scale_x_continuous(breaks = NULL) + 
+  scale_y_continuous(breaks = NULL) +
+  theme(
+    plot.title = element_text(margin = margin(b = 8), 
+                              color = "#ffffff",face = "bold",size = 9,
+                              hjust = 0.5,
+                              family = "Arial"),
+    plot.subtitle = element_text(margin = margin(t=10,b = 25), 
+                                 color = "#ffffff", size = 6, family = "Arial",
+                                 hjust = 0.5),
+    plot.caption =  element_text(margin = margin(t = 20), 
+                                 color = "#ffffff", size = 5, family = "Arial",
+                                 hjust = 0.95),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    legend.title = element_blank(),
+    axis.text.x    = element_blank(),
+    axis.text.y    = element_blank(),
+    panel.background = element_blank(), 
+    panel.grid.major = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(), 
+    plot.background = element_rect(fill = "#f3f3f3", color = NA),
+    panel.border = element_blank(),
+    plot.margin = unit(c(1, 1, 1, 1), "cm"),
+    axis.ticks = element_blank()
+  ) 
+
+legend_US3<- 
+  bi_legend(pal = "DkCyan",
+            dim = 3,
+            xlab = "Proficiency in Math",
+            ylab = "Instructional Spend",
+            size = 20) +
+  theme(rect = element_rect(fill = "grey10"),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        plot.background = element_rect(fill = "#f3f3f3", color = NA),
+        axis.title.x = element_text(size = 10,
+                                    color = "#a1a1a1",
+                                    face = "bold"),
+        axis.title.y = element_text(size = 10,
+                                    color = "#a1a1a1",
+                                    face = "bold"),
+        legend.text = element_text(size = 5),
+        legend.text.align = 0)
+
+
+ggdraw() +
+  draw_plot(p3, 0, 0, 1, 1) +
+  draw_plot(legend_US3, 0, 0.1, 0.2, 0.2) +
+  draw_label("Source:National Center for Education Statistics)", 
+             color = "#a1a1a1", size = 7.5, angle = 0, x = 0.9, y = 0.05) +
+  draw_label("In which states the total spending on Instruction per student positively affects performance in Math?", 
+             color = "#000000", size = 17, angle = 0, x =0.5, y = 0.97, fontface = "bold") +
+  draw_label("Bivariate map shwoing the combination of the total spending on intrusction per student and the average demonstrated proficiency in Math", 
+             color = "#000000", size = 14, angle = 0, x =0.5, y = 0.92) +
+  theme(plot.background = element_rect(fill = "#f3f3f3", color = NA)) 
+```
+*TODO: do somth with Wyoming and Alabama (no data for them) *
+
+We can observe the general tendency of positive correlation between Expenditure on Instruction and MAth proficiency. In Nebraska, New York, Pennsylvania, Maryland, District of Columbia, and Connecticut, increased spending on instruction results in increased math scores. In Oregon, Montana, Michigan, Indiana, and Ohia, the avergae spending on instruction matches the average math scores. Arizona, Oklahoma, New Mexico, Tennessee, Mississippi, report the lowest total spend on Instruction, which correlates with the relatively low demonstrated proficiency in math by students of those states . 
+Interestingly, Texas and Idaho that demonstrated the high RLA scores despite small total spending, exhibit the same pattern here: hogh math scores despite low spending on Instruction. Other states that show the same pattern with instructional spending are Colorado, South Dakota, and North Carolina. On the flip side, Maine again exhibits the opposite pattern: the high instructional spending negatively correlates with the students' math proficiency. Here, the same trend is observed in Minnesota and Hawaii. 
+
+*TODO: do the comaprison of instruction spendings for rla scores*
+
+```{r ksenia-SpEd}
+#Plotting the total Spending on SPecial Ed by state
+SpEd2  %>%
+  ggplot(aes(Z36_B, fct_reorder(STNAME, Z36_B))) +
+  geom_col(aes(fill = Region),
+           alpha = 0.9) +
+  scale_fill_OkabeIto() + 
+  scale_x_continuous(expand = c(0, 0), 
+                     limits = c(0, 4),
+                     breaks = c(0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5), 
+                     labels = c("0", "500 million", "1 billion", "1.5 billion", "2 billion", "2.5 billion", "3 billion", "3.5 billion"))+ 
+  labs(title = "Total Spending on Special Ed Teachers by State",
+       y = "State",
+       x = "Total Yearly Spending on Special Ed, in USD",
+       caption = "Source: National Center for Education Statistics", 
+       fill = "Region") + 
+  geom_text(
+    aes(Z36_B, STNAME, label = paste (round(Z36_B, 2), " B.")),
+    nudge_x = 0.1,
+    size = 3
+  ) +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank()) 
+```
+```{r ksenia-SpEd-bivariate}
+biscale4 <- 
+  scores_SpEd %>% 
+  group_by(STNAME) %>% 
+  summarize(
+    math = mean(mean_math_dis, na.rm=TRUE),
+    SpEd = mean(Z36, na.rm=TRUE)
+  ) %>% 
+  bi_class(x = math, y = SpEd, style = "quantile", dim = 3)
+
+
+names(biscale4)[1]<-"full"
+map_join4<- biscale4%>%left_join(statepop, by= "full") 
+
+
+p4<-plot_usmap(data = map_join4, values = "bi_class", labels = TRUE, label_color = "white")   +
+  bi_scale_fill(pal = "DkCyan", dim = 3, guide = F) +
+  scale_x_continuous(breaks = NULL) + 
+  scale_y_continuous(breaks = NULL) +
+  theme(
+    plot.title = element_text(margin = margin(b = 8), 
+                              color = "#ffffff",face = "bold",size = 9,
+                              hjust = 0.5,
+                              family = "Arial"),
+    plot.subtitle = element_text(margin = margin(t=10,b = 25), 
+                                 color = "#ffffff", size = 6, family = "Arial",
+                                 hjust = 0.5),
+    plot.caption =  element_text(margin = margin(t = 20), 
+                                 color = "#ffffff", size = 5, family = "Arial",
+                                 hjust = 0.95),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    legend.title = element_blank(),
+    axis.text.x    = element_blank(),
+    axis.text.y    = element_blank(),
+    panel.background = element_blank(), 
+    panel.grid.major = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(), 
+    plot.background = element_rect(fill = "#f3f3f3", color = NA),
+    panel.border = element_blank(),
+    plot.margin = unit(c(1, 1, 1, 1), "cm"),
+    axis.ticks = element_blank()
+  ) 
+
+legend_US4<- 
+  bi_legend(pal = "DkCyan",
+            dim = 3,
+            xlab = "Proficiency in Math",
+            ylab = "Special Ed Spend",
+            size = 20) +
+  theme(rect = element_rect(fill = "grey10"),
+        panel.border = element_blank(),
+        axis.text = element_blank(),
+        plot.background = element_rect(fill = "#f3f3f3", color = NA),
+        axis.title.x = element_text(size = 10,
+                                    color = "#a1a1a1",
+                                    face = "bold"),
+        axis.title.y = element_text(size = 10,
+                                    color = "#a1a1a1",
+                                    face = "bold"),
+        legend.text = element_text(size = 5),
+        legend.text.align = 0)
+
+
+ggdraw() +
+  draw_plot(p4, 0, 0, 1, 1) +
+  draw_plot(legend_US4, 0, 0.1, 0.2, 0.2) +
+  draw_label("Source:National Center for Education Statistics)", 
+             color = "#a1a1a1", size = 7.5, angle = 0, x = 0.9, y = 0.05) +
+  draw_label("In which states the total spending on Special Edcuation positively affects performance of children with disabilities in Math?", 
+             color = "#000000", size = 14, angle = 0, x =0.5, y = 0.97, fontface = "bold") +
+  draw_label("Bivariate map showing the combination of the total spending on Special Education and the average demonstrated proficiency in Math of children with disabilities", 
+             color = "#000000", size = 12, angle = 0, x =0.5, y = 0.92) +
+  theme(plot.background = element_rect(fill = "#f3f3f3", color = NA)) 
+```
+Generally, all the states that spend the most on special education report the highest permormance results on math tests. 
+
+*TODO: deal with the states that have no data*
+*TODO: besides bivariate maps, include scatterplots to show all the correlations*
+```{r ksenia-textbooks-total}
+#Plot of Total Spending on Textbooks by state
+textbooks2  %>%
+  ggplot(aes(V93_M, fct_reorder(STNAME, V93_M))) +
+  geom_col(aes(fill = Region),
+           alpha = 0.9) +
+  scale_fill_OkabeIto() + 
+  scale_x_continuous(expand = c(0, 0), 
+                     limits = c(0, 350),
+                     breaks = c(0, 50, 100, 150, 200, 250, 300, 350), 
+                     labels = c("0", "50 million", "100 million", "150 million", "200 million", "250 million", "300 million", "350 million")) + 
+  labs(title = "Total Spending on Textbook by State",
+       y = "State",
+       x = "Total Textbook Spending, in USD",
+       caption = "Source: National Center for Education Statistics", 
+       fill = "Region") + 
+  geom_text(
+    aes(V93_M, STNAME, label = paste (round(V93_M, 2), " M.")),
+    nudge_x = 8,
+    size = 2
+  ) +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank()) 
+```
+```{r ksenia-textbooks-bystudent}
+#plotting spending on textbooks per student by state 
+textbooks2  %>%
+  ggplot(aes(book_per_stu, fct_reorder(STNAME, book_per_stu))) +
+  geom_col(aes(fill = Region),
+           alpha = 0.9) +
+  scale_fill_OkabeIto() + 
+  scale_x_continuous(expand = c(0, 0), 
+                     limits = c(0, 150),
+                     breaks = c(0, 25, 50, 75, 100, 125, 150))+ 
+                    # labels = c("0", "5K", "10K", "15K")) + 
+  labs(title = "Total Spending on Textbooks Per Single Student by State",
+       y = "State",
+       x = "Total Yearly Spending on Textbooks Per Student, in USD",
+       caption = "Source: National Center for Education Statistics", 
+       fill = "Region") + 
+  geom_text(
+    aes(book_per_stu, STNAME, label = round(book_per_stu, 2)),
+    nudge_x = 2.2,
+    size = 3) +
+  geom_vline(aes(xintercept = mean(textbooks2$book_per_stu)), 
+             data = instruction2, 
+             linetype = 'dashed',
+             size = 0.6,
+             alpha = 1, 
+             color = "gray60") +
+  geom_label(data = instruction2, 
+             aes(x = mean(textbooks2$book_per_stu)+8, 
+                 y = 10,
+                 label = "Avg. Spending
+on Textbooks
+Per Student 
+in the US = 
+$ 60.01",
+                 fill = NULL), 
+                 color = "gray60",
+                 size = 4,
+                 fontface = "italic",
+                 label.size = NA)  +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank()) 
 ```
 
 ### Data Visualization 3 
