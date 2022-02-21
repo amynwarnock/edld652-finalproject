@@ -21,6 +21,7 @@ library(here)
 library(janitor)
 library(skimr)
 library(rio)
+#install.packages("fuzzyjoin")
 library(fuzzyjoin)
 library(viridis)
 library(patchwork)
@@ -98,8 +99,8 @@ df2$CWDrla = readr::parse_number(df2$CWDrla)
 dat <- df2 %>% 
 	group_by(STNAM) %>% 
 	summarise(
-		mean_EconoicallyDisadvantaged_math = mean(ECDmath, na.rm = TRUE),
-		mean_EconoicallyDisadvantaged_rla = mean(ECDrla, na.rm = TRUE),
+		mean_EconmoicallyDisadvantaged_math = mean(ECDmath, na.rm = TRUE),
+		mean_EconomicallyDisadvantaged_rla = mean(ECDrla, na.rm = TRUE),
 		mean_EnglishLearner_math = mean(LEPmath, na.rm = TRUE),
 		mean_EnglishLearner_rla = mean(LEPrla, na.rm = TRUE),
 		mean_Homeless_math = mean(HOMmath, na.rm = TRUE),
@@ -123,7 +124,7 @@ dat <- dat %>% filter(!STNAM == "BUREAU OF INDIAN AFFAIRS" & !STNAM == "stnam" &
 regions <- import(here("data","us_census_bureau_regions_and_divisions.csv")) %>%
 	rename(state = `State Code`, `STNAM` = State)
 
-df_regions <- regex_inner_join(dat, regions,ignore_case =TRUE) 
+df_regions <- regex_inner_join(dat, regions,ignore_case = TRUE) 
 
 df_pivot <- df_regions %>% 
 	pivot_longer(
@@ -140,11 +141,13 @@ df_pivot$STNAM.y <- as.factor(df_pivot$STNAM.y)
 df_pivot$Subgroup <- as.factor(df_pivot$Subgroup)
 
 ```
+
 ```{r rebecca-plots}
 #Plot showing mean test score by subgroup and test
+#AW: I'm getting this error message: Error in median.default(X[[i]], ...) : need numeric data
 
-df_pivot %>%   
-	ggplot(aes(x = mean_pct, 
+df_pivot %>%
+	ggplot(aes(x = mean_pct,
 						 y = fct_reorder(STNAM.y, Subgroup),
 						 fill = mean_pct,
 						 color = test)) +
@@ -193,24 +196,28 @@ ggplot(df_pivot, aes(x = mean_pct,
 
 #Trying to figure out how to show test scores separated by Gender but the plot won't create separate values for each
 
-df_pivot %>% 
-	filter(Subgroup %in% c("Male", "Female")) %>% 
-	group_by(Subgroup) %>% 
+#AW: I'm getting this error message: Error: Discrete value supplied to continuous scale
+
+df_pivot %>%
+	filter(Subgroup %in% c("Male", "Female")) %>%
+	group_by(Subgroup) %>%
 	ggplot(aes(x = mean_pct,
 						 y = fct_reorder(STNAM.y, mean_pct),
-						 fill = paste(STNAM.y, Subgroup))) + 
+						 fill = paste(STNAM.y, Subgroup))) +
 	geom_density_ridges_gradient(scale = 2, size = 0.3, rel_min_height = 0.001) +
 	scale_fill_viridis_c(name = "%", option = "C") +
 	coord_cartesian(clip = "off") +
 	theme_ridges(grid = FALSE) +
 	labs(title = 'Mean percentage of economically disadvantaged students that scored at or above proficient',
 			 x = 'Mean percent proficient',
-			 y = 'State') 
+			 y = 'State')
 
 ```
 
 ```{r rebecca-maps}
 #Maps
+#AW: Should map titles include "economically disadvantaged?" They look like they include all student subgroups to me. 
+
 us <- usa_sf()
 
 us <- rename(us, state = iso_3166_2)
@@ -270,8 +277,11 @@ ggplot(data = dat2, aes(geometry = geometry,
 	theme_void()
 
 ```
+
 ### Data Visualization 2 
+
 #### Ksenia
+
 **Research Question:** 
 
 What drives current expenditure on education? How is funding allocated by state and how do the funding allocations correlate with eh student performance (graduation rates and/or test scores)? Does cross-state variation in expenditure explain the cross-state variation in education outcomes? More specifically, I might look at the following:
@@ -574,12 +584,14 @@ viz3_rlalea00_long <- viz3_rlalea00 %>%
 
 ```{r amy-viz3-rla-allgrades-join}
 # Joined the long file with the cleaned/narrowed fiscal data file. Used an inner join because I'm only interested in LEAs that have both student proficiency and fiscal data. 
-viz3_rla00long_fiscal_2010 <- inner_join(viz3_rlalea00_long, viz3_fiscal2010, by = "leaid")
+viz3_rla00long_fiscal_2010 <- inner_join(viz3_rlalea00_long, 
+                                         viz3_fiscal2010, 
+                                         by = "leaid")
 ```
 
 **Potential Visualizations**
 
-These are the data visualizations I am thinking I will choose from for our final product. I'm not going to include all of these. My primary next step is to narrow them down. Please note that they are still a bit rough and need refinement (some more than others). Aside from determining which visualizations to include, I plan to finalize color, try out annotations and/or highlighting, and explore alternate options for faceting by state. If I include the plots with fitted lines, I plan to update the colors and replace the legend with annotations.
+These are the data visualizations I am thinking I will choose from for our final product. I'm not going to include all of these. My primary next step is to narrow them down. Please note that they are still a bit rough and need refinement (some more than others). Refinement plans include... finalizing color, trying out annotations and/or highlighting, and exploring alternate options for faceting by state. If I include the plots with fitted lines, I plan to update the colors and replace the legend with annotations.
 
 First off, bar graphs. The first two summarize LEA local revenue and LEA local revenue from property taxes averaged by state. The third graph summarizes the average percentage of students scoring at/above proficient by state. 
 
@@ -609,7 +621,8 @@ viz3_rla00long_fiscal_2010 %>%
   filter(subgroup == "all")  %>% 
   group_by(stnam) %>% 
   summarize(mean_locrevtaxes_stu = mean(locrevtaxes_stu)) %>% 
-  ggplot(aes(x = mean_locrevtaxes_stu, y = fct_reorder(stnam, mean_locrevtaxes_stu))) +
+  ggplot(aes(x = mean_locrevtaxes_stu, 
+             y = fct_reorder(stnam, mean_locrevtaxes_stu))) +
   geom_col(color = "white", alpha = .6) +
   scale_x_continuous(expand = c(0, 0),
                     breaks = c(0, 2500, 5000, 7500, 10000),
@@ -688,7 +701,7 @@ viz3_rla00long_fiscal_2010 %>%
   ggplot(aes(x = locrevtaxes_stu, y = meanpctprof)) +
   geom_point(color = "gray30", fill = "gray30", alpha = .4) + 
   scale_x_log10(labels = scales::dollar) +
-  labs(title = "Relationship between Local Revenue from Property Taxes and RLA Proficiency",
+  labs(title = "Local Revenue from Property Taxes and RLA Proficiency",
        y = "Approximate Average Percent Proficient",
        x = "Dollar per Student",
        caption = "Source: National Center for Education Statistics, 2010") +
@@ -708,7 +721,7 @@ viz3_rla00long_fiscal_2010 %>%
   facet_wrap(~stnam) +
   geom_point(color = "gray30", fill = "gray30", alpha = .4) + 
   scale_x_log10(labels = scales::dollar) +
-  labs(title = "Relationship between Total Local Revenue and RLA Proficiency",
+  labs(title = "Total Local Revenue and RLA Proficiency",
        y = "Approximate Average Percent Proficient",
        x = "Dollar per Student",
        caption = "Source: National Center for Education Statistics, 2010") +
@@ -724,7 +737,7 @@ viz3_rla00long_fiscal_2010 %>%
   facet_wrap(~stnam) +
   geom_point(color = "gray30", fill = "gray30", alpha = .4) + 
   scale_x_log10(labels = scales::dollar) +
-  labs(title = "Relationship between Local Revenue from Property Taxes and RLA Proficiency",
+  labs(title = "Local Revenue from Property Taxes and RLA Proficiency",
        y = "Approximate Average Percent Proficient",
        x = "Dollar per Student",
        caption = "Source: National Center for Education Statistics, 2010") +
@@ -743,7 +756,7 @@ viz3_rla00long_fiscal_2010 %>%
   facet_wrap(~subgroup) +
   geom_point(color = "gray30", fill = "gray30", alpha = .4) + 
   scale_x_log10(labels = scales::dollar) +
-  labs(title = "Relationship between Total Local Revenue and RLA Proficiency",
+  labs(title = "Total Local Revenue and RLA Proficiency",
        y = "Approximate Average Percent Proficient",
        x = "Dollar per Student",
        caption = "Source: National Center for Education Statistics, 2010") +
@@ -758,7 +771,7 @@ viz3_rla00long_fiscal_2010 %>%
   facet_wrap(~subgroup) +
   geom_point(color = "gray30", fill = "gray30", alpha = .4) +
   scale_x_log10(labels = scales::dollar) +
-  labs(title = "Relationship between Local Revenue from Property Taxes and RLA Proficiency",
+  labs(title = "Local Revenue from Property Taxes and RLA Proficiency",
        y = "Approximate Average Percent Proficient",
        x = "Dollar per Student",
        caption = "Source: National Center for Education Statistics, 2010") +
@@ -774,9 +787,13 @@ Playing around with fitting lines. These are still rough. I need to work on the 
 viz3_rla00long_fiscal_2010 %>% 
   filter(subgroup != "all") %>% 
   ggplot() +
-  geom_smooth(method = lm, se = F, aes(x = locrevtaxes_stu, y = meanpctprof, color = subgroup)) +
+  geom_smooth(method = lm, 
+              se = F, 
+              aes(x = locrevtaxes_stu, 
+                  y = meanpctprof, 
+                  color = subgroup)) +
   scale_x_log10(labels = scales::dollar) +
-  labs(title = "Relationship between Local Revenue from Property Taxes and RLA Proficiency",
+  labs(title = "Local Revenue from Property Taxes and RLA Proficiency",
        y = "Approximate Average Percent Proficient",
        x = "Dollar per Student",
        caption = "Source: National Center for Education Statistics, 2010") +
@@ -795,7 +812,7 @@ viz3_rla00long_fiscal_2010 %>%
   geom_smooth(method = lm, se = F, aes(x = locrevtaxes_stu, y = meanpctprof, color = subgroup)) +
   facet_wrap(~stnam) +
   scale_x_log10(labels = scales::dollar) +
-  labs(title = "Relationship between Local Revenue from Property Taxes and RLA Proficiency",
+  labs(title = "Local Revenue from Property Taxes and RLA Proficiency",
        y = "Approximate Average Percent Proficient",
        x = "Dollar per Student",
        caption = "Source: National Center for Education Statistics, 2010") +
@@ -805,19 +822,22 @@ viz3_rla00long_fiscal_2010 %>%
         panel.grid.minor.x = element_blank())
 ```
 
-Created maps displaying (a) average LEA local revenue in each state and (b) average LEA local revenue from property taxes in each state. I still need to fill in the missing states and want to try out different color palettes
+Created maps displaying (a) average LEA local revenue in each state and (b) average LEA local revenue from property taxes in each state. I still need to fill in the missing states and want to try out different color palettes.  
 
 ```{r amy-viz3-map}
+viz3_map_dfprep <- viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "all") %>% 
+  group_by(stnam) %>% 
+  summarize(mean_locrev_stu = mean(locrev_stu),
+            mean_locrevtaxes_stu = mean(locrevtaxes_stu))
+
 viz3_us <- usa_sf() 
 
-viz3_map <- left_join(viz3_rla00long_fiscal_2010, 
+viz3_map_df <- left_join(viz3_map_dfprep, 
                       viz3_us, 
                       by = c("stnam" = "name"))
 
-viz3_map %>% 
-  filter(subgroup == "all") %>% 
-  group_by(stnam) %>% 
-  mutate(mean_locrev_stu = mean(locrev_stu)) %>% 
+viz3_map_df %>% 
   ggplot(aes(geometry = geometry, fill = mean_locrev_stu)) +
   geom_sf(color = "white", size = 0) +
  	scale_fill_viridis(option = "magma", 
@@ -828,17 +848,14 @@ viz3_map %>%
  										            "$5,000", 
  										            "$7,500", 
  										            "$10,000",
- 										            "$12,5000")) +
+ 										            "$12,500")) +
   theme_void() +
   labs(title = "Average LEA Total Local Revenue",
        caption = "Source: National Center for Education Statistics, 2010") +
   theme(plot.title.position = "plot") 
 
 
-viz3_map %>% 
-  filter(subgroup == "all") %>% 
-  group_by(stnam) %>% 
-  mutate(mean_locrevtaxes_stu = mean(locrevtaxes_stu)) %>% 
+viz3_map_df %>% 
   ggplot(aes(geometry = geometry, fill = mean_locrevtaxes_stu)) +
   geom_sf(color = "white", size = 0) +
  	scale_fill_viridis(option = "magma", 
@@ -857,7 +874,8 @@ viz3_map %>%
 
 **Other Data Visualizations**
 
-These are some of the preliminary visualizations I did that I don't think I'm moving forward with.
+These are some of the preliminary visualizations I did that I don't think I'm moving forward with. Because of this, refinement is minimal. 
+
 ```{r amy-viz3-prelim1}
 # Scatterplot: Total local LEA revenue from property taxes ($ per stu) x approx. pct proficient, color = subgroup
 viz3_rla00long_fiscal_2010 %>% 
@@ -878,7 +896,11 @@ Fitted lines for specific states:
 viz3_rla00long_fiscal_2010 %>% 
   filter(stnam == "Montana") %>% 
   ggplot() +
-  geom_smooth(method = lm, se = F, aes(x = locrevtaxes_stu, y = meanpctprof, color = subgroup)) +
+  geom_smooth(method = lm, 
+              se = F, 
+              aes(x = locrevtaxes_stu, 
+                  y = meanpctprof, 
+                  color = subgroup)) +
   scale_x_log10(labels = scales::dollar) +
   theme_minimal() +
   theme(plot.title.position = "plot",
@@ -889,7 +911,11 @@ viz3_rla00long_fiscal_2010 %>%
 viz3_rla00long_fiscal_2010 %>% 
   filter(stnam == "South Dakota") %>% 
   ggplot() +
-  geom_smooth(method = lm, se = F, aes(x = locrevtaxes_stu, y = meanpctprof, color = subgroup)) +
+  geom_smooth(method = lm, 
+              se = F, 
+              aes(x = locrevtaxes_stu, 
+                  y = meanpctprof, 
+                  color = subgroup)) +
   scale_x_log10(labels = scales::dollar) +
   theme_minimal() +
   theme(plot.title.position = "plot",
@@ -900,7 +926,11 @@ viz3_rla00long_fiscal_2010 %>%
 viz3_rla00long_fiscal_2010 %>% 
   filter(stnam == "New Jersey") %>% 
   ggplot() +
-  geom_smooth(method = lm, se = F, aes(x = locrevtaxes_stu, y = meanpctprof, color = subgroup)) +
+  geom_smooth(method = lm, 
+              se = F, 
+              aes(x = locrevtaxes_stu, 
+                  y = meanpctprof, 
+                  color = subgroup)) +
   scale_x_log10(labels = scales::dollar) +
   theme_minimal() +
   theme(plot.title.position = "plot",
