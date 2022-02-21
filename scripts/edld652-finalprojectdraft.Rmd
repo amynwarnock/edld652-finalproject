@@ -11,6 +11,7 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE,
+                      eval = TRUE,
                       message = FALSE,
                       warning = FALSE)
 
@@ -29,12 +30,12 @@ library(albersusa)
 library(ggridges)
 #install.packages("biscale")
 library(biscale)
-install.packages("cowplot")
+#install.packages("cowplot")
 library(cowplot)
 library(grid)
 #install.packages("gridtext")
 library(gridtext)
-install.packages("usmap")
+#install.packages("usmap")
 library(usmap)
 library(colorblindr)
 ```
@@ -153,11 +154,10 @@ df_pivot$Subgroup <- as.factor(df_pivot$Subgroup)
 
 ```{r rebecca-plots}
 #Plot showing mean test score by subgroup and test
-#AW: I'm getting this error message: Error in median.default(X[[i]], ...) : need numeric data
 
 df_pivot %>%
 	ggplot(aes(x = mean_pct,
-						 y = fct_reorder(STNAM.y, Subgroup),
+						 y = fct_reorder(STNAM.y, mean_pct),
 						 fill = mean_pct,
 						 color = test)) +
 	geom_point(size = .8,
@@ -205,19 +205,17 @@ ggplot(df_pivot, aes(x = mean_pct,
 
 #Trying to figure out how to show test scores separated by Gender but the plot won't create separate values for each
 
-#AW: I'm getting this error message: Error: Discrete value supplied to continuous scale
-
 df_pivot %>%
 	filter(Subgroup %in% c("Male", "Female")) %>%
 	group_by(Subgroup) %>%
 	ggplot(aes(x = mean_pct,
 						 y = fct_reorder(STNAM.y, mean_pct),
-						 fill = paste(STNAM.y, Subgroup))) +
+						 fill = stat(x))) +
 	geom_density_ridges_gradient(scale = 2, size = 0.3, rel_min_height = 0.001) +
 	scale_fill_viridis_c(name = "%", option = "C") +
 	coord_cartesian(clip = "off") +
 	theme_ridges(grid = FALSE) +
-	labs(title = 'Mean percentage of economically disadvantaged students that scored at or above proficient',
+	labs(title = 'Mean percentage of students that scored at or above proficient by gender',
 			 x = 'Mean percent proficient',
 			 y = 'State')
 
@@ -225,7 +223,6 @@ df_pivot %>%
 
 ```{r rebecca-maps}
 #Maps
-#AW: Should map titles include "economically disadvantaged?" They look like they include all student subgroups to me. 
 
 us <- usa_sf()
 
@@ -247,7 +244,7 @@ dat2 %>%
 	guides(color = "none") +
 	scale_fill_viridis(name = "%",
 										 breaks = c(0, 20, 40, 60, 80)) +
-	labs(title = "Mean percentage of economically disadvantaged students that scored at or above proficient",
+	labs(title = "Mean percentage of students that scored at or above proficient",
 			 subtitle = "Math",
 			 caption = "Source: U.S. Department of Education") +
 	theme_void()
@@ -265,7 +262,7 @@ dat2 %>%
 	guides(color = "none") +
 	scale_fill_viridis(name = "%",
 										 breaks = c(0, 20, 40, 60, 80)) +
-	labs(title = "Mean percentage of economically disadvantaged students that scored at or above proficient",
+	labs(title = "Mean percentage of students that scored at or above proficient",
 			 subtitle = "Reading",
 			 caption = "Source: U.S. Department of Education") +
 	theme_void()
@@ -280,7 +277,7 @@ ggplot(data = dat2, aes(geometry = geometry,
 	guides(color = "none") +
 	scale_fill_viridis(name = "%",
 										 breaks = c(0, 20, 40, 60, 80)) +
-	labs(title = "Mean percentage of economically disadvantaged students that scored at or above proficient",
+	labs(title = "Mean percentage of students that scored at or above proficient",
 			 subtitle = "Across Math and Reading",
 			 caption = "Source: U.S. Department of Education") +
 	theme_void()
