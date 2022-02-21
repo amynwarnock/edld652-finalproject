@@ -26,6 +26,7 @@ library(viridis)
 library(patchwork)
 library(albersusa)
 library(ggridges)
+
 ```
 
 ```{r load-datasets}
@@ -345,72 +346,664 @@ SpEd  %>%
 #### Amy
 **Research Question:** 
 
-What is the relationship between districts’ local revenue and students’ literacy outcomes on statewide assessments in 2010? I plan on exploring more specific questions that may impact the direction of my final focus and data visualization, including (a) total local revenue vs. local revenue from property taxes, (b) outcomes for specific grades vs. overall, (c) outcomes for specific student race/ethnicity subgroups vs. overall, (e) examining the relationship between funding and outcomes by state, and (e) average local funding (in dollar per student) per state and/or district.  
+What is the relationship between the local revenue of local education agencies and students’ literacy outcomes on statewide assessments in 2010? Additional areas of exploration included (a) average total local revenue and local revenue property taxes by state, (b) the relationship between outcomes and total local revenue vs. local revenue from property taxes, (c) the relationship between both types of funding and outcomes by state, and (d) relationship between both types of revenue and outcomes of student subgroups (e.g., race/ethnicity, disability status, language proficiency, SES). 
 
 **Datasets:**  
 
 - EDFacts_rla_achievement_lea_2010_2019  
 - NCES_CCD_fiscal_district_2010 
 
-```{r amy-viz3-wrangling}
+**Variables:**
 
-# Some initial exploration
-#View(rlalea_10)
-#View(fiscal2010)
+EDFacts_rla_achievement_lea_2010_2019
 
-colnames(rlalea_10)
+- YEAR
+- STNAM
+- FIPST
+- LEAID
+- ALL_RLA00PCTPROF = Percentage of all students who scored at or above their state's proficiency level on Reading/Language Arts.
+- MAM_RLA03PCTPROF = Percentage of Native American students that scored at or above proficient
+- MAS_RLA00PCTPROF = Percentage of Asian/Pacific Islander students that scored at or above proficient
+- MBL_RLA00PCTPROF = Percentage of Black students that scored at or above proficient
+- MHI_RLA00PCTPROF = Percentage of Hispanic students that scored at or above proficient
+- MTR_RLA00PCTPROF = Percentage of students with Two or More Races that scored at or above proficient
+- MWH_RLA03PCTPROF = Percentage of White students that scored at or above proficient
+- CWD_RLA00PCTPROF = Percentage of children with disabilities that scored at or above proficient
+- ECD_RLA00PCTPROF = Percentage of economically disadvantaged students that scored at or above proficient
+- LEP_RLA00PCTPROF = Percentage of limited English proficient students that scored at or above proficient
 
-rlalea_10  %>% 
-  ggplot(aes(YEAR, ALL_RLA03PCTPROF)) +
-             geom_point()
+NCES_CCD_fiscal_district_2010:
 
-unique(rlalea_10$YEAR)
+- NAME 
+- STABBR
+- CENSUSID
+- V33 = LEA fall membership (i.e., number of students) 
+- TOTALREV = LEA total revenue
+- TFEDREV = LEA total federal revenue
+- TSTREV = LEA total state revenue
+- TLOCREV = LEA total local revenue 
+- T06 = LEA local revenue from property taxes
 
-skim(rlalea_10)
+**Cleaning and Wrangling**
 
-# Going to need to clean these 
-rlalea_10 %>%
-  group_by(ALL_RLA03PCTPROF) %>% 
-  summarize(n = n())
+```{r amy-viz3-cleaning-fiscal}
+# Selected columns of interest. Filtered so that rows with suppressed values (e.g., -9, -2) for key variables of interest weren't included. 
+viz3_fiscal2010 <- fiscal2010 %>% 
+  select(LEAID, NAME, STABBR, CENSUSID, V33,
+         TOTALREV, TFEDREV, TSTREV, TLOCREV, T06) %>% 
+  filter(V33 > 0, TLOCREV > 0, T06 > 0) %>%
+  rename_with(tolower) %>% 
+  rename(totalstu = v33, tlocrevtaxes = t06) %>% 
+  mutate(locrev_stu = tlocrev / totalstu,
+         locrevtaxes_stu = tlocrevtaxes / totalstu)
+```
 
-# Prelim exploration for fiscal file and local revenue
-skim(fiscal2010)
+```{r amy-viz3-rla-allgrades-cleaning-wrangling}
+# Narrowed the RLA 2010 file down to variables of interest. Selected percent proficient variables across all grades (00) for race ethnicity, disability, English Language Learner status, and economically disadvantaged subgroups. Transformed variable names to be lowercase, transformed state names to be title case, and replaced the suppressed values (e.g., PS, n/a, etc.) with NA.
+viz3_rlalea00 <- rlalea_10 %>% 
+  select(YEAR, 
+         STNAM, 
+         FIPST,
+         LEAID, 
+         ALL_RLA00PCTPROF, 
+         MAM_RLA00PCTPROF,
+         MAS_RLA00PCTPROF,
+         MBL_RLA00PCTPROF,
+         MHI_RLA00PCTPROF,
+         MTR_RLA00PCTPROF, 
+         MWH_RLA00PCTPROF,
+         CWD_RLA00PCTPROF,
+         ECD_RLA00PCTPROF,
+         LEP_RLA00PCTPROF) %>% 
+  rename_with(tolower)  %>% 
+  mutate(stnam = str_to_title(stnam), 
+         (across(all_rla00pctprof:lep_rla00pctprof, 
+                 ~replace(., . %in% c("PS", 
+                                      "n/a",	
+                                      "LT50",	
+                                      "LE5",	
+                                      "LE20",	
+                                      "LE10",	
+                                      "GE99",	
+                                      "GE95",	
+                                      "GE90",	
+                                      "GE80",	
+                                      "GE50"), NA))))
 
-# Total local revenue (need to adjust x-axis)
-fiscal2010 %>% 
-  ggplot(aes(TLOCREV)) +
-  geom_histogram()
+# Next step was cleaning the percentage columns to change percentage ranges to average percentages. I used the method Daniel used on the course data webpage and applied it to all subgroups.
 
-fiscal2010 %>%
-  group_by(LEAID) %>% 
-  summarize(TLOCREV) 
+# All = across all students
+viz3_rlalea00 <- viz3_rlalea00 %>% 
+  tidyr::separate(all_rla00pctprof, c("all_lower", "all_upper"), sep = "-") %>% 
+  mutate(
+    all_upper = ifelse(is.na(all_upper), all_lower, all_upper),
+    all_lower = as.numeric(all_lower),
+    all_upper = as.numeric(all_upper)
+    ) %>% 
+  rowwise() %>% 
+  mutate(meanpctprof_all = mean(c(all_lower, all_upper))) %>% 
+  ungroup()
 
-# Exploring local revenue solely from property taxes
-fiscal2010 %>% 
-  ggplot(aes(T06)) +
-  geom_histogram()
+# mam = American Indian/Alaska Native
+viz3_rlalea00 <- viz3_rlalea00 %>% 
+  tidyr::separate(mam_rla00pctprof, c("mam_lower", "mam_upper"), sep = "-") %>% 
+  mutate(
+    mam_upper = ifelse(is.na(mam_upper), mam_lower, mam_upper),
+    mam_lower = as.numeric(mam_lower),
+    mam_upper = as.numeric(mam_upper)
+    ) %>% 
+  rowwise() %>% 
+  mutate(meanpctprof_mam = mean(c(mam_lower, mam_upper))) %>% 
+  ungroup()
 
-fiscal2010 %>%
-  group_by(LEAID) %>% 
-  summarize(T06) 
+# mas = Asian/Pacific Islander
+viz3_rlalea00 <- viz3_rlalea00 %>% 
+  tidyr::separate(mas_rla00pctprof, c("mas_lower", "mas_upper"), sep = "-") %>% 
+  mutate(
+    mas_upper = ifelse(is.na(mas_upper), mas_lower, mas_upper),
+    mas_lower = as.numeric(mas_lower),
+    mas_upper = as.numeric(mas_upper)
+    ) %>% 
+  rowwise() %>% 
+  mutate(meanpctprof_mas = mean(c(mas_lower, mas_upper))) %>% 
+  ungroup()
 
-# Local funding in property tax per student
-fiscal2010 <- fiscal2010 %>% 
-  mutate(taxperstu = T06/V33)
+# mbl = Black
+viz3_rlalea00 <- viz3_rlalea00 %>% 
+  tidyr::separate(mbl_rla00pctprof, c("mbl_lower", "mbl_upper"), sep = "-") %>% 
+  mutate(
+    mbl_upper = ifelse(is.na(mbl_upper), mbl_lower, mbl_upper),
+    mbl_lower = as.numeric(mbl_lower),
+    mbl_upper = as.numeric(mbl_upper)
+    ) %>% 
+  rowwise() %>% 
+  mutate(meanpctprof_mbl = mean(c(mbl_lower, mbl_upper))) %>% 
+  ungroup()
 
-fiscal2010$taxperstu
+# mhi = Hispanic/Latino
+viz3_rlalea00 <- viz3_rlalea00 %>% 
+  tidyr::separate(mhi_rla00pctprof, c("mhi_lower", "mhi_upper"), sep = "-") %>% 
+  mutate(
+    mhi_upper = ifelse(is.na(mhi_upper), mhi_lower, mhi_upper),
+    mhi_lower = as.numeric(mhi_lower),
+    mhi_upper = as.numeric(mhi_upper)
+    ) %>% 
+  rowwise() %>% 
+  mutate(meanpctprof_mhi = mean(c(mhi_lower, mhi_upper))) %>% 
+  ungroup()
 
-fiscal2010 %>% 
-  ggplot(aes(taxperstu)) +
-  geom_histogram()
+# mtr = Multiracial
+viz3_rlalea00 <- viz3_rlalea00 %>% 
+  tidyr::separate(mtr_rla00pctprof, c("mtr_lower", "mtr_upper"), sep = "-") %>% 
+  mutate(
+    mtr_upper = ifelse(is.na(mtr_upper), mtr_lower, mtr_upper),
+    mtr_lower = as.numeric(mtr_lower),
+    mtr_upper = as.numeric(mtr_upper)
+    ) %>% 
+  rowwise() %>% 
+  mutate(meanpctprof_mtr = mean(c(mtr_lower, mtr_upper))) %>% 
+  ungroup()
 
-fiscal2010 %>%
-  group_by(LEAID) %>% 
-  summarize(taxperstu)
+# mwh = White
+viz3_rlalea00 <- viz3_rlalea00 %>% 
+  tidyr::separate(mwh_rla00pctprof, c("mwh_lower", "mwh_upper"), sep = "-") %>% 
+  mutate(
+    mwh_upper = ifelse(is.na(mwh_upper), mwh_lower, mwh_upper),
+    mwh_lower = as.numeric(mwh_lower),
+    mwh_upper = as.numeric(mwh_upper)
+    ) %>% 
+  rowwise() %>% 
+  mutate(meanpctprof_mwh = mean(c(mwh_lower, mwh_upper))) %>% 
+  ungroup()
 
-# I don't think this works b/c I need to clean values for the property tax variable before calculating tax per student
-fiscal2010 %>%
-  summarize(min_taxperstu = min(taxperstu),
-            max_taxperstu = max(taxperstu)) 
+# cwd = children with disabilities
+viz3_rlalea00 <- viz3_rlalea00 %>% 
+  tidyr::separate(cwd_rla00pctprof, c("cwd_lower", "cwd_upper"), sep = "-") %>% 
+  mutate(
+    cwd_upper = ifelse(is.na(cwd_upper), cwd_lower, cwd_upper),
+    cwd_lower = as.numeric(cwd_lower),
+    cwd_upper = as.numeric(cwd_upper)
+    ) %>% 
+  rowwise() %>% 
+  mutate(meanpctprof_cwd = mean(c(cwd_lower, cwd_upper))) %>% 
+  ungroup()
 
+# ecd = economically disadvantaged
+viz3_rlalea00 <- viz3_rlalea00 %>% 
+  tidyr::separate(ecd_rla00pctprof, c("ecd_lower", "ecd_upper"), sep = "-") %>% 
+  mutate(
+    ecd_upper = ifelse(is.na(ecd_upper), ecd_lower, ecd_upper),
+    ecd_lower = as.numeric(ecd_lower),
+    ecd_upper = as.numeric(ecd_upper)
+    ) %>% 
+  rowwise() %>% 
+  mutate(meanpctprof_ecd = mean(c(ecd_lower, ecd_upper))) %>% 
+  ungroup()
+
+# lep = limited English proficiency (English Language Learner)
+viz3_rlalea00 <- viz3_rlalea00 %>% 
+  tidyr::separate(lep_rla00pctprof, c("lep_lower", "lep_upper"), sep = "-") %>% 
+  mutate(
+    lep_upper = ifelse(is.na(lep_upper), lep_lower, lep_upper),
+    lep_lower = as.numeric(lep_lower),
+    lep_upper = as.numeric(lep_upper)
+    ) %>% 
+  rowwise() %>% 
+  mutate(meanpctprof_lep = mean(c(lep_lower, lep_upper))) %>% 
+  ungroup()
+
+# Get ride of the "_lower" and "_upper" percentage columns since they won't be needed
+viz3_rlalea00 <- viz3_rlalea00 %>% 
+  select(year, 
+         stnam, 
+         fipst,
+         leaid,
+         contains("meanpctprof"))
+```
+
+```{r amy-viz3-rla-allgrades-pivotlonger}
+# Pivoted the dataset longer to have a column for subgroup and a column for mean percentage proficient. 
+
+viz3_rlalea00_long <- viz3_rlalea00 %>%
+  pivot_longer(
+ 		cols = contains("meanpctprof"),
+ 		names_to = "subgroup",
+ 		values_to = "meanpctprof",
+ 		names_prefix = "meanpctprof_") 
+```
+
+```{r amy-viz3-rla-allgrades-join}
+# Joined the long file with the cleaned/narrowed fiscal data file. Used an inner join because I'm only interested in LEAs that have both student proficiency and fiscal data. 
+viz3_rla00long_fiscal_2010 <- inner_join(viz3_rlalea00_long, viz3_fiscal2010, by = "leaid")
+```
+
+**Potential Visualizations**
+
+These are the data visualizations I am thinking I will choose from for our final product. I'm not going to include all of these. My primary next step is to narrow them down. Please note that they are still a bit rough and need refinement (some more than others). Aside from determining which visualizations to include, I plan to finalize color, try out annotations and/or highlighting, and explore alternate options for faceting by state. If I include the plots with fitted lines, I plan to update the colors and replace the legend with annotations.
+
+First off, bar graphs. The first two summarize LEA local revenue and LEA local revenue from property taxes averaged by state. The third graph summarizes the average percentage of students scoring at/above proficient by state. 
+
+```{r amy-viz3-bargraphs, fig.height=7}
+# Bar graph: Average LEA total local revenue ($ per student) by state
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "all")  %>% 
+  group_by(stnam) %>% 
+  summarize(mean_locrev_stu = mean(locrev_stu)) %>% 
+  ggplot(aes(x = mean_locrev_stu, y = fct_reorder(stnam, mean_locrev_stu))) +
+  geom_col(color = "white", alpha = .6) +
+  scale_x_continuous(expand = c(0, 0),
+                     breaks = c(0, 2500, 5000, 7500, 10000, 12500),
+                     labels = scales::dollar) +
+  labs(title = "Average Local Revenue of LEAs",
+       y = "State",
+       x = "Dollar per student",
+       caption = "Source: National Center for Education Statistics, 2010") +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank())  
+
+# Bar graph: Average LEA local revenue from property taxes ($ per student) by state
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "all")  %>% 
+  group_by(stnam) %>% 
+  summarize(mean_locrevtaxes_stu = mean(locrevtaxes_stu)) %>% 
+  ggplot(aes(x = mean_locrevtaxes_stu, y = fct_reorder(stnam, mean_locrevtaxes_stu))) +
+  geom_col(color = "white", alpha = .6) +
+  scale_x_continuous(expand = c(0, 0),
+                    breaks = c(0, 2500, 5000, 7500, 10000),
+                     labels = scales::dollar) +
+  labs(title = "Average Local Revenue of LEAs from Property Taxes",
+       y = "State",
+       x = "Dollar per student",
+       caption = "Source: National Center for Education Statistics, 2010") +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank())
+
+# Bar graph of average RLA proficiency for each state
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "all")  %>% 
+  group_by(stnam) %>% 
+  summarize(mean_pctprof = mean(meanpctprof, na.rm = T)) %>% 
+  ggplot(aes(x = mean_pctprof, y = fct_reorder(stnam, mean_pctprof))) +
+  geom_col(color = "white", alpha = .6) +
+  scale_x_continuous(expand = c(0, 0),
+                    breaks = c(0, 20, 40, 60, 80),
+                    labels = c("0%", "20%", "40%", "60%", "80%")) +
+  labs(title = "Average Proficiency in Reading/Language Arts",
+       subtitle = "Students in Grades 3 through HS",
+       y = "State",
+       x = "Average Percentage",
+       caption = "Source: National Center for Education Statistics, 2010") +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank())  
+```
+
+Density ridges of local revenue from property taxes for LEAs by state. One thing I plan to do, if I include this plot, that I didn't get to is sorting the states by mean revenue.
+
+```{r amy-viz3-densityridges, fig.height=7}
+# Density ridges of local revenue from property taxes across LEAs by state
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "all")  %>% 
+  ggplot(aes(x = locrevtaxes_stu, y = stnam)) +
+ 	geom_density_ridges(fill = "cornflower blue", color = "white", alpha = .8) +
+ 	theme_minimal() +
+  labs(title = "Local Revenue from Property Taxes in LEAS of Each State",
+       y = "State",
+       x = "Dollar per student",
+       caption = "Source: National Center for Education Statistics, 2010") +
+  theme_minimal() +
+  theme(plot.title.position = "plot") + 
+  scale_x_continuous(expand = c(0, 0)) +
+  coord_cartesian(xlim = c(0, 25000))
+```
+
+Scatterplots showing the relationship between types of revenue and average percentage of students scoring at/above proficient on statewide assessments of reading/language arts. Note that I used a log transformation of the x-axis to spread the points out. Without the transformation, the bulk of the points were clustered near the bottom of the range. I think that I could use highlighting and annotations for the lowest and highest points.
+
+```{r amy-viz3-scatterplots1, fig.width=7, fig.height=7}
+# Scatterplots: All students, LEA total local revenue ($ per stu) and LEA local revenue from property taxes by approx. pct proficient
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "all") %>% 
+  ggplot(aes(x = locrev_stu, y = meanpctprof)) +
+  geom_point(color = "gray30", fill = "gray30", alpha = .4) + 
+  scale_x_log10(labels = scales::dollar) +
+  labs(title = "Relationship between Local Revenue and RLA Proficiency",
+       y = "Approximate Average Percent Proficient",
+       x = "Dollar per Student",
+       caption = "Source: National Center for Education Statistics, 2010") +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank()) 
+
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "all") %>% 
+  ggplot(aes(x = locrevtaxes_stu, y = meanpctprof)) +
+  geom_point(color = "gray30", fill = "gray30", alpha = .4) + 
+  scale_x_log10(labels = scales::dollar) +
+  labs(title = "Relationship between Local Revenue from Property Taxes and RLA Proficiency",
+       y = "Approximate Average Percent Proficient",
+       x = "Dollar per Student",
+       caption = "Source: National Center for Education Statistics, 2010") +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank())
+```
+
+Scatterplots faceted by state. 
+
+```{r amy-viz3-scatterplots2, fig.height=10, fig.width=12}
+# Scatterplot: All students - relationship between local revenue ($ per student) and mean % proficient, faceted by state
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "all") %>% 
+  ggplot(aes(x = locrev_stu, y = meanpctprof)) +
+  facet_wrap(~stnam) +
+  geom_point(color = "gray30", fill = "gray30", alpha = .4) + 
+  scale_x_log10(labels = scales::dollar) +
+  labs(title = "Relationship between Total Local Revenue and RLA Proficiency",
+       y = "Approximate Average Percent Proficient",
+       x = "Dollar per Student",
+       caption = "Source: National Center for Education Statistics, 2010") +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank()) 
+
+# Scatterplot: All students - relationship between local revenue from property taxes ($ per student) and mean % proficient, faceted by state
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "all") %>% 
+  ggplot(aes(x = locrevtaxes_stu, y = meanpctprof)) +
+  facet_wrap(~stnam) +
+  geom_point(color = "gray30", fill = "gray30", alpha = .4) + 
+  scale_x_log10(labels = scales::dollar) +
+  labs(title = "Relationship between Local Revenue from Property Taxes and RLA Proficiency",
+       y = "Approximate Average Percent Proficient",
+       x = "Dollar per Student",
+       caption = "Source: National Center for Education Statistics, 2010") +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank())
+```
+
+Scatterplots showing the relationship between revenue and outcomes, faceted by subgroup. These are still pretty rough (e.g., labels need work).
+
+```{r amy-viz3-scatterplots3, fig.height=10, fig.width=10}
+# Scatterplot: Relationship between local revenue ($ per student) and mean % proficient, faceted by subgroup
+viz3_rla00long_fiscal_2010 %>% 
+  ggplot(aes(x = locrev_stu, y = meanpctprof)) +
+  facet_wrap(~subgroup) +
+  geom_point(color = "gray30", fill = "gray30", alpha = .4) + 
+  scale_x_log10(labels = scales::dollar) +
+  labs(title = "Relationship between Total Local Revenue and RLA Proficiency",
+       y = "Approximate Average Percent Proficient",
+       x = "Dollar per Student",
+       caption = "Source: National Center for Education Statistics, 2010") +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank()) 
+
+# Scatterplot: Relationship between local revenue from property taxes ($ per student) and mean % proficient, faceted by subgroup
+viz3_rla00long_fiscal_2010 %>% 
+  ggplot(aes(x = locrevtaxes_stu, y = meanpctprof)) +
+  facet_wrap(~subgroup) +
+  geom_point(color = "gray30", fill = "gray30", alpha = .4) +
+  scale_x_log10(labels = scales::dollar) +
+  labs(title = "Relationship between Local Revenue from Property Taxes and RLA Proficiency",
+       y = "Approximate Average Percent Proficient",
+       x = "Dollar per Student",
+       caption = "Source: National Center for Education Statistics, 2010") +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank())
+```
+
+Playing around with fitting lines. These are still rough. I need to work on the legend and want to try replacing it with annotations. Also could consider changing the color to highlight a specific group or pick a different color palette. 
+
+```{r amy-viz3-fittedlines}
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup != "all") %>% 
+  ggplot() +
+  geom_smooth(method = lm, se = F, aes(x = locrevtaxes_stu, y = meanpctprof, color = subgroup)) +
+  scale_x_log10(labels = scales::dollar) +
+  labs(title = "Relationship between Local Revenue from Property Taxes and RLA Proficiency",
+       y = "Approximate Average Percent Proficient",
+       x = "Dollar per Student",
+       caption = "Source: National Center for Education Statistics, 2010") +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank())
+```
+
+Fitted lines faceted by state (also very rough).
+
+```{r amy-viz3-fittedlines2, fig.height=10, fig.width=12}
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup != "all") %>% 
+  ggplot() +
+  geom_smooth(method = lm, se = F, aes(x = locrevtaxes_stu, y = meanpctprof, color = subgroup)) +
+  facet_wrap(~stnam) +
+  scale_x_log10(labels = scales::dollar) +
+  labs(title = "Relationship between Local Revenue from Property Taxes and RLA Proficiency",
+       y = "Approximate Average Percent Proficient",
+       x = "Dollar per Student",
+       caption = "Source: National Center for Education Statistics, 2010") +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank())
+```
+
+Created maps displaying (a) average LEA local revenue in each state and (b) average LEA local revenue from property taxes in each state. I still need to fill in the missing states and want to try out different color palettes
+
+```{r amy-viz3-map}
+viz3_us <- usa_sf() 
+
+viz3_map <- left_join(viz3_rla00long_fiscal_2010, 
+                      viz3_us, 
+                      by = c("stnam" = "name"))
+
+viz3_map %>% 
+  filter(subgroup == "all") %>% 
+  group_by(stnam) %>% 
+  mutate(mean_locrev_stu = mean(locrev_stu)) %>% 
+  ggplot(aes(geometry = geometry, fill = mean_locrev_stu)) +
+  geom_sf(color = "white", size = 0) +
+ 	scale_fill_viridis(option = "magma", 
+ 	                   name = "Dollar per student",
+ 										 breaks = c(0, 2500, 5000, 7500, 10000, 12500),
+ 										 labels = c("$0", 
+ 										            "$2,500", 
+ 										            "$5,000", 
+ 										            "$7,500", 
+ 										            "$10,000",
+ 										            "$12,5000")) +
+  theme_void() +
+  labs(title = "Average LEA Total Local Revenue",
+       caption = "Source: National Center for Education Statistics, 2010") +
+  theme(plot.title.position = "plot") 
+
+
+viz3_map %>% 
+  filter(subgroup == "all") %>% 
+  group_by(stnam) %>% 
+  mutate(mean_locrevtaxes_stu = mean(locrevtaxes_stu)) %>% 
+  ggplot(aes(geometry = geometry, fill = mean_locrevtaxes_stu)) +
+  geom_sf(color = "white", size = 0) +
+ 	scale_fill_viridis(option = "magma", 
+ 	                   name = "Dollar per student",
+ 										 breaks = c(0, 2500, 5000, 7500, 10000),
+ 										 labels = c("$0", 
+ 										            "$2,500", 
+ 										            "$5,000", 
+ 										            "$7,500", 
+ 										            "$10,000")) +
+  theme_void() +
+  labs(title = "Average LEA Local Revenue from Property Taxes",
+       caption = "Source: National Center for Education Statistics, 2010") +
+  theme(plot.title.position = "plot") 
+```
+
+**Other Data Visualizations**
+
+These are some of the preliminary visualizations I did that I don't think I'm moving forward with.
+```{r amy-viz3-prelim1}
+# Scatterplot: Total local LEA revenue from property taxes ($ per stu) x approx. pct proficient, color = subgroup
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup != "all") %>% 
+  ggplot(aes(x = locrevtaxes_stu, y = meanpctprof, color = subgroup)) +
+  geom_point(alpha = .4) + 
+  scale_x_log10(labels = scales::dollar) +
+  theme_minimal() +
+  labs(title = "Revenue from property tax x meanpctprof, color by subgroup") +
+  theme(plot.title.position = "plot",
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank())
+```
+
+Fitted lines for specific states:
+```{r amy-viz3-prelim2}
+# fitted lines in a few specific states
+viz3_rla00long_fiscal_2010 %>% 
+  filter(stnam == "Montana") %>% 
+  ggplot() +
+  geom_smooth(method = lm, se = F, aes(x = locrevtaxes_stu, y = meanpctprof, color = subgroup)) +
+  scale_x_log10(labels = scales::dollar) +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank())  +
+  labs(title = "Montana")
+
+viz3_rla00long_fiscal_2010 %>% 
+  filter(stnam == "South Dakota") %>% 
+  ggplot() +
+  geom_smooth(method = lm, se = F, aes(x = locrevtaxes_stu, y = meanpctprof, color = subgroup)) +
+  scale_x_log10(labels = scales::dollar) +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank()) +
+  labs(title = "South Dakota")
+
+viz3_rla00long_fiscal_2010 %>% 
+  filter(stnam == "New Jersey") %>% 
+  ggplot() +
+  geom_smooth(method = lm, se = F, aes(x = locrevtaxes_stu, y = meanpctprof, color = subgroup)) +
+  scale_x_log10(labels = scales::dollar) +
+  theme_minimal() +
+  theme(plot.title.position = "plot",
+        panel.grid.minor.y = element_blank(),
+        panel.grid.minor.x = element_blank()) +
+  labs(title = "New Jersey")
+```
+
+```{r amy-viz3-prelim3}
+# Fitting a line over data points for local revenue x meanpctprof by state
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "all") %>% 
+  ggplot(aes(x = locrev_stu, y = meanpctprof)) +
+  geom_smooth(method = "lm") +
+  facet_wrap(~stnam) +
+  geom_point(alpha = .1) + 
+  scale_x_log10(labels = scales::dollar) 
+```
+
+```{r amy-viz3-prelim4}
+# Scatterplot: Relationship between local revenue from property taxes ($ per student) and mean % proficient, faceted by state, color by subgroup 
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup != "all") %>% 
+  ggplot(aes(x = locrev_stu, y = meanpctprof, color = subgroup)) +
+  facet_wrap(~stnam) +
+  geom_point(alpha = .4) + 
+  scale_x_log10(labels = scales::dollar)
+```
+
+Scatterplots for each student subgroup between local revenue from property tax and % proficient, faceted by state. The subgroup is indicated in the title. 
+
+```{r amy-viz3-prelim5}
+# Scatterplots: Relationship between local revenue from property taxes ($ per student) and mean % proficient, faceted by state for each subgroup 
+
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "mam") %>% 
+  ggplot(aes(x = locrev_stu, y = meanpctprof)) +
+  facet_wrap(~stnam) +
+  geom_point(alpha = .4) + 
+  scale_x_log10(labels = scales::dollar) +
+  labs(title = "American Indian/Alaska Native")
+
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "mas") %>% 
+  ggplot(aes(x = locrev_stu, y = meanpctprof)) +
+  facet_wrap(~stnam) +
+  geom_point(alpha = .4) + 
+  scale_x_log10(labels = scales::dollar) +
+  labs(title = "Asian/Pacific Islander")
+
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "mhi") %>% 
+  ggplot(aes(x = locrev_stu, y = meanpctprof)) +
+  facet_wrap(~stnam) +
+  geom_point(alpha = .4) + 
+  scale_x_log10(labels = scales::dollar) +
+  labs(title = "Hispanic/Latino")
+
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "mbl") %>% 
+  ggplot(aes(x = locrev_stu, y = meanpctprof)) +
+  facet_wrap(~stnam) +
+  geom_point(alpha = .4) + 
+  scale_x_log10(labels = scales::dollar) +
+  labs(title = "Black")
+
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "mwh") %>% 
+  ggplot(aes(x = locrev_stu, y = meanpctprof)) +
+  facet_wrap(~stnam) +
+  geom_point(alpha = .4) + 
+  scale_x_log10(labels = scales::dollar) +
+  labs(title = "White")
+
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "mtr") %>% 
+  ggplot(aes(x = locrev_stu, y = meanpctprof)) +
+  facet_wrap(~stnam) +
+  geom_point(alpha = .4) + 
+  scale_x_log10(labels = scales::dollar) +
+  labs(title = "Multiracial")
+
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "cwd") %>% 
+  ggplot(aes(x = locrev_stu, y = meanpctprof)) +
+  facet_wrap(~stnam) +
+  geom_point(alpha = .4) + 
+  scale_x_log10(labels = scales::dollar) +
+  labs(title = "Students with Disabilities")
+
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "ecd") %>% 
+  ggplot(aes(x = locrev_stu, y = meanpctprof)) +
+  facet_wrap(~stnam) +
+  geom_point(alpha = .4) + 
+  scale_x_log10(labels = scales::dollar) +
+  labs(title = "Economically Disadvantaged")
+
+viz3_rla00long_fiscal_2010 %>% 
+  filter(subgroup == "lep") %>% 
+  ggplot(aes(x = locrev_stu, y = meanpctprof)) +
+  facet_wrap(~stnam) +
+  geom_point(alpha = .4) + 
+  scale_x_log10(labels = scales::dollar) +
+  labs(title = "Limited English Proficiency")
 ```
