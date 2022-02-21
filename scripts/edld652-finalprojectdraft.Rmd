@@ -99,7 +99,7 @@ df2$CWDrla = readr::parse_number(df2$CWDrla)
 dat <- df2 %>% 
 	group_by(STNAM) %>% 
 	summarise(
-		mean_EconmoicallyDisadvantaged_math = mean(ECDmath, na.rm = TRUE),
+		mean_EconomicallyDisadvantaged_math = mean(ECDmath, na.rm = TRUE),
 		mean_EconomicallyDisadvantaged_rla = mean(ECDrla, na.rm = TRUE),
 		mean_EnglishLearner_math = mean(LEPmath, na.rm = TRUE),
 		mean_EnglishLearner_rla = mean(LEPrla, na.rm = TRUE),
