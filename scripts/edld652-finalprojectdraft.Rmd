@@ -14,15 +14,19 @@ knitr::opts_chunk$set(echo = TRUE,
                       message = FALSE,
                       warning = FALSE)
 
+
 library(edld652)
 library(tidyverse)
 library(here)
 library(janitor)
 library(skimr)
-library(ggridges)
-library(albersusa)
+library(rio)
+library(fuzzyjoin)
 library(viridis)
 library(patchwork)
+library(albersusa)
+library(ggridges)
+
 ```
 
 ```{r load-datasets}
@@ -31,6 +35,10 @@ mathlea_10 <- get_data("EDFacts_math_achievement_lea_2010_2019")
 rlalea_10 <- get_data("EDFacts_rla_achievement_lea_2010_2019")
 
 fiscal2010 <- get_data("NCES_CCD_fiscal_district_2010")
+
+mathsch_10 <- get_data("EDFacts_math_achievement_sch_2010_2019")
+
+rlasch_10 <- get_data("EDFacts_rla_achievement_sch_2010_2019")
 ```
 
 ### Data Visualization 1 
@@ -41,24 +49,227 @@ How do high school students’ subgroup makeup (i.e., Race/ethnicity, Male vs. F
 
 **Datasets:** 
 
-- EDFacts_math_achievement_lea_2010_2019 
-- EDFacts_rla_achievement_lea_2010_2019 
-- EDFacts_rla_participation_lea_2013_2019 
-- EDFacts_math_participation_lea_2013_2019           
+- EDFacts_math_achievement_sch_2010_2019
+- EDFacts_rla_achievement_sch_2010_2019
 
 ```{r rebecca-datawrangling}
 
-skim(mathlea_10)
-skim(rlalea_10)
+df <- full_join(mathsch_10, rlasch_10) 
 
-mathlea_10 %>% tabyl(ECD_MTHHSPCTPROF)
-mathlea_10 %>% tabyl(LEP_MTHHSPCTPROF)
-mathlea_10 %>% tabyl(HOM_MTHHSPCTPROF)
-mathlea_10 %>% tabyl(MIG_MTHHSPCTPROF)
-mathlea_10 %>% tabyl(CWD_MTHHSPCTPROF)
+df2 <- df %>% 
+	mutate(ECDmath = gsub("[^0-9.-]", "", ECD_MTHHSPCTPROF),
+				 ECDrla = gsub("[^0-9.-]", "", ECD_RLAHSPCTPROF),
+				 LEPrla = gsub("[^0-9.-]", "", LEP_RLAHSPCTPROF),
+				 LEPmath = gsub("[^0-9.-]", "", LEP_MTHHSPCTPROF),
+				 HOMmath = gsub("[^0-9.-]", "", HOM_MTHHSPCTPROF),
+				 HOMrla = gsub("[^0-9.-]", "", HOM_RLAHSPCTPROF),
+				 Mmath = gsub("[^0-9.-]", "", M_MTHHSPCTPROF),
+				 Mrla = gsub("[^0-9.-]", "", M_RLAHSPCTPROF),
+				 Fmath = gsub("[^0-9.-]", "", F_MTHHSPCTPROF),
+				 Frla = gsub("[^0-9.-]", "", F_RLAHSPCTPROF),
+				 MBLmath = gsub("[^0-9.-]", "", MBL_MTHHSPCTPROF),
+				 MBLrla = gsub("[^0-9.-]", "", MBL_RLAHSPCTPROF),
+				 MHImath = gsub("[^0-9.-]", "", MHI_MTHHSPCTPROF),
+				 MHIrla = gsub("[^0-9.-]", "", MHI_RLAHSPCTPROF),
+				 MWHmath = gsub("[^0-9.-]", "", MWH_MTHHSPCTPROF),
+				 MWHrla = gsub("[^0-9.-]", "", MWH_RLAHSPCTPROF),
+				 CWDmath = gsub("[^0-9.-]", "", CWD_MTHHSPCTPROF),
+				 CWDrla = gsub("[^0-9.-]", "", CWD_RLAHSPCTPROF))
+
+df2$ECDmath = readr::parse_number(df2$ECDmath) 
+df2$ECDrla = readr::parse_number(df2$ECDrla) 
+df2$LEPrla = readr::parse_number(df2$LEPrla) 
+df2$LEPmath = readr::parse_number(df2$LEPmath) 
+df2$HOMrla = readr::parse_number(df2$HOMrla) 
+df2$HOMmath = readr::parse_number(df2$HOMmath) 
+df2$Mrla = readr::parse_number(df2$Mrla) 
+df2$Mmath = readr::parse_number(df2$Mmath) 
+df2$Frla = readr::parse_number(df2$Frla) 
+df2$Fmath = readr::parse_number(df2$Fmath) 
+df2$MBLrla = readr::parse_number(df2$MBLrla) 
+df2$MBLmath = readr::parse_number(df2$MBLmath) 
+df2$MHIrla = readr::parse_number(df2$MHIrla) 
+df2$MHImath = readr::parse_number(df2$MHImath) 
+df2$MWHmath = readr::parse_number(df2$MWHmath) 
+df2$MWHrla = readr::parse_number(df2$MWHrla) 
+df2$CWDmath = readr::parse_number(df2$CWDmath) 
+df2$CWDrla = readr::parse_number(df2$CWDrla) 
+
+dat <- df2 %>% 
+	group_by(STNAM) %>% 
+	summarise(
+		mean_EconoicallyDisadvantaged_math = mean(ECDmath, na.rm = TRUE),
+		mean_EconoicallyDisadvantaged_rla = mean(ECDrla, na.rm = TRUE),
+		mean_EnglishLearner_math = mean(LEPmath, na.rm = TRUE),
+		mean_EnglishLearner_rla = mean(LEPrla, na.rm = TRUE),
+		mean_Homeless_math = mean(HOMmath, na.rm = TRUE),
+		mean_Homeless_rla = mean(HOMrla, na.rm = TRUE),
+		mean_Male_math = mean(Mmath, na.rm = TRUE),
+		mean_Male_rla = mean(Mrla, na.rm = TRUE),
+		mean_Female_math = mean(Fmath, na.rm = TRUE),
+		mean_Female_rla = mean(Frla, na.rm = TRUE),
+		mean_Black_math = mean(MBLmath, na.rm = TRUE),
+		mean_Black_rla = mean(MBLrla, na.rm = TRUE),
+		mean_Hispanic_math = mean(MHImath, na.rm = TRUE),
+		mean_Hispanic_rla = mean(MHIrla, na.rm = TRUE),
+		mean_White_math = mean(MWHmath, na.rm = TRUE),
+		mean_White_rla = mean(MWHrla, na.rm = TRUE),
+		mean_Disabled_math = mean(CWDmath, na.rm = TRUE),
+		mean_Disabled_rla = mean(CWDrla, na.rm = TRUE)
+	) 
+
+dat <- dat %>% filter(!STNAM == "BUREAU OF INDIAN AFFAIRS" & !STNAM == "stnam" & !STNAM == "PUERTO RICO") 
+
+regions <- import(here("data","us_census_bureau_regions_and_divisions.csv")) %>%
+	rename(state = `State Code`, `STNAM` = State)
+
+df_regions <- regex_inner_join(dat, regions,ignore_case =TRUE) 
+
+df_pivot <- df_regions %>% 
+	pivot_longer(
+		cols = starts_with("mean_"),
+		names_to = c("Subgroup", "test"),
+		values_to = "mean_pct",
+		names_sep = "_",
+		values_drop_na = TRUE,
+		names_repair = "check_unique",
+		names_prefix = "mean_"
+	) 
+
+df_pivot$STNAM.y <- as.factor(df_pivot$STNAM.y)
+df_pivot$Subgroup <- as.factor(df_pivot$Subgroup)
+
+```
+```{r rebecca-plots}
+#Plot showing mean test score by subgroup and test
+
+df_pivot %>%   
+	ggplot(aes(x = mean_pct, 
+						 y = fct_reorder(STNAM.y, Subgroup),
+						 fill = mean_pct,
+						 color = test)) +
+	geom_point(size = .8,
+						 alpha = .7) +
+	facet_wrap(~Subgroup) +
+	guides(fill = "none") +
+	scale_color_discrete(l = 45,
+											 name = "Test",
+											 labels = c("Math", "Reading")) +
+	labs(title = 'Mean percentage of students that scored at or above proficient',
+			 x = 'Mean percent proficient',
+			 y = 'State') +
+	theme_minimal()
+
+
+#Plot showing mean test score by subgroup and test by state
+
+df_pivot %>%   
+	ggplot(aes(x = mean_pct, 
+						 y = fct_reorder(Subgroup, mean_pct))) +
+	geom_jitter(aes(color = test),
+							size = .9,
+							alpha = .8) +
+	facet_wrap(~STNAM.y) +
+	scale_color_discrete(l = 70,
+											 name = "Test",
+											 labels = c("Math", "Reading")) +
+	labs(title = 'Mean percentage of students that scored at or above proficient',
+			 x = 'Mean percent proficient',
+			 y = 'Group') 
+
+#Plot showing mean test score by subgroup and test by region
+
+ggplot(df_pivot, aes(x = mean_pct, 
+										 y = fct_reorder(Subgroup, mean_pct), 
+										 fill = Region,
+										 alpha = .7)) +
+	guides(alpha = "none") +
+	geom_density_ridges(rel_min_height = 0.005) +
+	theme_minimal() +
+	labs(title = 'Mean percentage of students that scored at or above proficient',
+			 x = 'Mean percent proficient',
+			 y = 'Group') 
+
+
+#Trying to figure out how to show test scores separated by Gender but the plot won't create separate values for each
+
+df_pivot %>% 
+	filter(Subgroup %in% c("Male", "Female")) %>% 
+	group_by(Subgroup) %>% 
+	ggplot(aes(x = mean_pct,
+						 y = fct_reorder(STNAM.y, mean_pct),
+						 fill = paste(STNAM.y, Subgroup))) + 
+	geom_density_ridges_gradient(scale = 2, size = 0.3, rel_min_height = 0.001) +
+	scale_fill_viridis_c(name = "%", option = "C") +
+	coord_cartesian(clip = "off") +
+	theme_ridges(grid = FALSE) +
+	labs(title = 'Mean percentage of economically disadvantaged students that scored at or above proficient',
+			 x = 'Mean percent proficient',
+			 y = 'State') 
 
 ```
 
+```{r rebecca-maps}
+#Maps
+us <- usa_sf()
+
+us <- rename(us, state = iso_3166_2)
+
+df_geo <- inner_join(df_pivot, us, by = "state")
+
+dat2 <- full_join(df_pivot, df_geo)
+
+#Math only
+dat2 %>% 
+	filter(test == "math") %>% 
+	ggplot(aes(geometry = geometry, 
+						 fill = mean_pct,
+						 color = test), 
+				 alpha = 0.9) + 
+	facet_wrap(~Subgroup) +
+	geom_sf(color = "white", size = 0) +
+	guides(color = "none") +
+	scale_fill_viridis(name = "%",
+										 breaks = c(0, 20, 40, 60, 80)) +
+	labs(title = "Mean percentage of economically disadvantaged students that scored at or above proficient",
+			 subtitle = "Math",
+			 caption = "Source: U.S. Department of Education") +
+	theme_void()
+
+
+#Reading only
+dat2 %>% 
+	filter(test == "rla") %>% 
+	ggplot(aes(geometry = geometry, 
+						 fill = mean_pct,
+						 color = test), 
+				 alpha = 0.9) + 
+	facet_wrap(~Subgroup) +
+	geom_sf(color = "white", size = 0) +
+	guides(color = "none") +
+	scale_fill_viridis(name = "%",
+										 breaks = c(0, 20, 40, 60, 80)) +
+	labs(title = "Mean percentage of economically disadvantaged students that scored at or above proficient",
+			 subtitle = "Reading",
+			 caption = "Source: U.S. Department of Education") +
+	theme_void()
+
+#combined map
+ggplot(data = dat2, aes(geometry = geometry, 
+												fill = mean_pct,
+												color = test), 
+			 alpha = 0.9) + 
+	facet_wrap(~Subgroup) +
+	geom_sf(color = "white", size = 0) +
+	guides(color = "none") +
+	scale_fill_viridis(name = "%",
+										 breaks = c(0, 20, 40, 60, 80)) +
+	labs(title = "Mean percentage of economically disadvantaged students that scored at or above proficient",
+			 subtitle = "Across Math and Reading",
+			 caption = "Source: U.S. Department of Education") +
+	theme_void()
+
+```
 ### Data Visualization 2 
 #### Ksenia
 **Research Question:** 
