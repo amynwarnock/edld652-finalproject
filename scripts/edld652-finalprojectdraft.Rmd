@@ -172,6 +172,7 @@ df_pivot %>%
 			 y = 'State') +
 	theme_minimal()
 
+#This was a good first shot. I think you'll have to play with the fig.height and fig.width to see when it looks readable. Other than that, my personal preference would be to divide this into different sub-categories - for gender, for ability, for race and ethnicity, and so on. Or, if you don't want to do that then rearranging it in a different way.
 
 #Plot showing mean test score by subgroup and test by state
 
@@ -189,6 +190,8 @@ df_pivot %>%
 			 x = 'Mean percent proficient',
 			 y = 'Group') 
 
+#Liked how you faceted by states
+
 #Plot showing mean test score by subgroup and test by region
 
 ggplot(df_pivot, aes(x = mean_pct, 
@@ -202,6 +205,7 @@ ggplot(df_pivot, aes(x = mean_pct,
 			 x = 'Mean percent proficient',
 			 y = 'Group') 
 
+#This was effective, maybe just rearranging the order
 
 #Trying to figure out how to show test scores separated by Gender but the plot won't create separate values for each
 
@@ -218,6 +222,8 @@ df_pivot %>%
 	labs(title = 'Mean percentage of students that scored at or above proficient by gender',
 			 x = 'Mean percent proficient',
 			 y = 'State')
+
+#Liked this too, again play with the fig dimensions to see which one is more readable.
 
 ```
 
@@ -282,6 +288,8 @@ ggplot(data = dat2, aes(geometry = geometry,
 			 caption = "Source: U.S. Department of Education") +
 	theme_void()
 
+#These were all great! Nice palette, and effective visuals. I was confused what "white" patches meant - maybe they are missing data. Making a note of this as a caption will help.
+
 ```
 
 ### Data Visualization 2 
@@ -297,6 +305,8 @@ What drives current expenditure on education? How is funding allocated by state 
 - Does increased spending on any of the categories correlate with increased students’ performance?  
 - Can higher teachers’ salaries result in better test scores? (i.e. Does the spending on Instruction positively correlate with performance on standardized tests)
 - What amount of funding is spent on special education and how that correlates with performance of students with disabilities? 
+<!-- These are wonderful questions! -->
+
 
 Not addressed at this point (yet?): 
 - How do those percentages/ gross amounts correlate with the diversity of the student population/portion of white students in school?
@@ -308,7 +318,8 @@ Not addressed at this point (yet?):
 - NCES_CCD_fiscal_district_2010
 
 ```{r ksenia-fiscaldata}
-skim(fiscal2010)
+#skim(fiscal2010) #perhaps this shouldn't be printed
+
 regions <- import(here("data", "us_census_bureau_regions_and_divisions.csv"), setclass = "tbl_df") %>% 
   rename(`STNAME` = State,
          STABBR = `State Code`) 
@@ -577,6 +588,8 @@ total_rg_avg  %>%
   theme(plot.title.position = "plot",
         panel.grid.major.y = element_blank(),
         panel.grid.minor.y = element_blank()) 
+
+
 ```
 *TODO: format 'by region' plot if keeping it*
 
@@ -1128,6 +1141,9 @@ $ 60.01",
   theme(plot.title.position = "plot",
         panel.grid.major.y = element_blank(),
         panel.grid.minor.y = element_blank()) 
+
+#These were all great visuals! 
+#I think your final maps have nice color palette. The correlation is hard to understand on a map though. I had to remind myself of how the color grid is arranged, and think it's somewhat cognitively challenging to interpret.  
 ```
 
 ### Data Visualization 3 
@@ -1435,6 +1451,8 @@ viz3_rla00long_fiscal_2010 %>%
         panel.grid.major.y = element_blank(),
         panel.grid.minor.y = element_blank(),
         panel.grid.minor.x = element_blank())  
+
+#Great, maybe change the bar colors
 ```
 
 Density ridges of local revenue from property taxes for LEAs by state. One thing I plan to do, if I include this plot, that I didn't get to is sorting the states by mean revenue.
@@ -1814,4 +1832,6 @@ viz3_rla00long_fiscal_2010 %>%
   geom_point(alpha = .4) + 
   scale_x_log10(labels = scales::dollar) +
   labs(title = "Limited English Proficiency")
+
+#These were all great explorations! Information presented by subgroup on the same map is hard to interpret because there are so many colors. I don't know what's a better alterative. Maybe, just focusing on some states and separating the faceted graphs into their individual graphs because there is a lot of information being conveyed together. 
 ```
