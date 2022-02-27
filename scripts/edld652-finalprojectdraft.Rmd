@@ -40,7 +40,7 @@ library(usmap)
 library(colorblindr)
 ```
 
-```{r load-datasets}
+```{r load-datasets, eval=FALSE, include=FALSE}
 mathlea_10 <- get_data("EDFacts_math_achievement_lea_2010_2019")
 
 rlalea_10 <- get_data("EDFacts_rla_achievement_lea_2010_2019")
@@ -106,6 +106,10 @@ df2$MWHrla = readr::parse_number(df2$MWHrla)
 df2$CWDmath = readr::parse_number(df2$CWDmath) 
 df2$CWDrla = readr::parse_number(df2$CWDrla) 
 
+#Not sure about how parse_number works on interval data & code that has letter and number. I've been avoiding using parse number because of this reason. 
+
+#math_sc$math_pctabove <- sub(".*-(.*)", "\\1", math_sc$math_pctabove)  This is what I used to get the upper end interval. 
+
 dat <- df2 %>% 
 	group_by(STNAM) %>% 
 	summarise(
@@ -149,6 +153,8 @@ df_pivot <- df_regions %>%
 
 df_pivot$STNAM.y <- as.factor(df_pivot$STNAM.y)
 df_pivot$Subgroup <- as.factor(df_pivot$Subgroup)
+
+
 
 ```
 
@@ -219,6 +225,8 @@ df_pivot %>%
 			 x = 'Mean percent proficient',
 			 y = 'State')
 
+#Love all the color palettes!!!
+
 ```
 
 ```{r rebecca-maps}
@@ -281,7 +289,7 @@ ggplot(data = dat2, aes(geometry = geometry,
 			 subtitle = "Across Math and Reading",
 			 caption = "Source: U.S. Department of Education") +
 	theme_void()
-
+#This is very brilliant way to compare across states!
 ```
 
 ### Data Visualization 2 
@@ -376,6 +384,7 @@ textbooks2$V93_M  <- textbooks2$V93/1000000
 textbooks2 <- textbooks2 %>% 
   mutate(book_per_stu = V93/V33)
 
+#Wow! I did not know that V33 is the number of students in the district! Our group had to combine membership data and calculated # of students. That's good to know! Lesson learned!
 ```
 
 ```{r ksenia-testdata}
@@ -577,6 +586,8 @@ total_rg_avg  %>%
   theme(plot.title.position = "plot",
         panel.grid.major.y = element_blank(),
         panel.grid.minor.y = element_blank()) 
+
+#For total spending do you think it is important to adjust for state cost of living for more objective comparison? Because total spending includes salary for teachers and staff. 
 ```
 *TODO: format 'by region' plot if keeping it*
 
@@ -945,6 +956,8 @@ ggdraw() +
   draw_label("Bivariate map shwoing the combination of the total spending on intrusction per student and the average demonstrated proficiency in Math", 
              color = "#000000", size = 14, angle = 0, x =0.5, y = 0.92) +
   theme(plot.background = element_rect(fill = "#f3f3f3", color = NA)) 
+
+#Great plot! Never seen one like this! I learned a lot from your works!
 ```
 *TODO: do somth with Wyoming and Alabama (no data for them) *
 
@@ -1523,6 +1536,8 @@ viz3_rla00long_fiscal_2010 %>%
   theme(plot.title.position = "plot",
         panel.grid.minor.y = element_blank(),
         panel.grid.minor.x = element_blank())
+
+#This is very informative plot, however, the small label makes it hard to read and compare. 
 ```
 
 Scatterplots showing the relationship between revenue and outcomes, faceted by subgroup. These are still pretty rough (e.g., labels need work).
