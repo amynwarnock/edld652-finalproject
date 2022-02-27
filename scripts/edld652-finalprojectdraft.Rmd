@@ -106,10 +106,12 @@ df2$MWHrla = readr::parse_number(df2$MWHrla)
 df2$CWDmath = readr::parse_number(df2$CWDmath) 
 df2$CWDrla = readr::parse_number(df2$CWDrla) 
 
+#MV PEER REVIEW: Add a calculation for standard error so that you can create error bars; added one line as an example
 dat <- df2 %>% 
 	group_by(STNAM) %>% 
 	summarise(
 		mean_EconomicallyDisadvantaged_math = mean(ECDmath, na.rm = TRUE),
+		se_EconomicallyDisadvantaged_math = sd(ECDmath, na.rm = TRUE)/sqrt(n()),
 		mean_EconomicallyDisadvantaged_rla = mean(ECDrla, na.rm = TRUE),
 		mean_EnglishLearner_math = mean(LEPmath, na.rm = TRUE),
 		mean_EnglishLearner_rla = mean(LEPrla, na.rm = TRUE),
@@ -155,6 +157,7 @@ df_pivot$Subgroup <- as.factor(df_pivot$Subgroup)
 ```{r rebecca-plots}
 #Plot showing mean test score by subgroup and test
 
+#MV PEER REVIEW: I like this graph
 df_pivot %>%
 	ggplot(aes(x = mean_pct,
 						 y = fct_reorder(STNAM.y, mean_pct),
