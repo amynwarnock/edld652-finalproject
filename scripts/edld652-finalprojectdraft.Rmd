@@ -37,6 +37,7 @@ library(grid)
 library(gridtext)
 #install.packages("usmap")
 library(usmap)
+library(ggrepel)
 library(colorblindr)
 ```
 
@@ -154,8 +155,10 @@ df_pivot$Subgroup <- as.factor(df_pivot$Subgroup)
 
 ```{r rebecca-plots}
 #Plot showing mean test score by subgroup and test
+big_states <- c("California","Florida","Texas","Pennsylvania","Ohio","Illinois","North Carolina","Michigan","Arizona","Georgia")
 
-df_pivot %>%
+
+df_pivot%>% filter(STNAM.y %in% big_states) %>%
 	ggplot(aes(x = mean_pct,
 						 y = fct_reorder(STNAM.y, mean_pct),
 						 fill = mean_pct,
@@ -171,6 +174,8 @@ df_pivot %>%
 			 x = 'Mean percent proficient',
 			 y = 'State') +
 	theme_minimal()
+#Great colors
+#I'm worried these y-axis labels will run together at any size, maybe subset some states?
 
 
 #Plot showing mean test score by subgroup and test by state
@@ -219,6 +224,11 @@ df_pivot %>%
 			 x = 'Mean percent proficient',
 			 y = 'State')
 
+#This is a great visualization that I wouldn't have thought of, with a cool idea for the y-axis too!
+#I would make sure to pick an aspect ratio that won't cause the y-axis labels to overlap.
+#I added a bit of code to subset the most populated 10 states in the first plot.
+#My only real critique of these is that there are lots of y-axis labels that may not fit on a reasonably sized graphic.
+#Plot 3 is very cool, and has a great amount of information and white space. The regions don't add too much for me and their distributions are so similar that you might take them out. You might still be able to add line segments indicating mean by region.
 ```
 
 ```{r rebecca-maps}
@@ -249,6 +259,8 @@ dat2 %>%
 			 caption = "Source: U.S. Department of Education") +
 	theme_void()
 
+dat3 <- dat2 %>% filter(test == "math")%>% group_by(Subgroup) %>% summarize(mean_pct = mean(mean_pct))
+levels(dat2$Subgroup) <- dat3[order(dat3$mean_pct),][[1]]
 
 #Reading only
 dat2 %>% 
@@ -268,6 +280,7 @@ dat2 %>%
 	theme_void()
 
 #combined map
+
 ggplot(data = dat2, aes(geometry = geometry, 
 												fill = mean_pct,
 												color = test), 
@@ -282,6 +295,9 @@ ggplot(data = dat2, aes(geometry = geometry,
 			 caption = "Source: U.S. Department of Education") +
 	theme_void()
 
+
+#These plots are great too! The scale colors look good, the text is legible for me
+#I releveled subgroup to order it based on mean math score, rather than be alphabetical
 ```
 
 ### Data Visualization 2 
@@ -577,6 +593,9 @@ total_rg_avg  %>%
   theme(plot.title.position = "plot",
         panel.grid.major.y = element_blank(),
         panel.grid.minor.y = element_blank()) 
+
+#Both of these are very clean. Mapping region to color on the first was a great choice.
+#A heatmap of spending by state might also be informative, especially as a colorful supplement to the second chart
 ```
 *TODO: format 'by region' plot if keeping it*
 
@@ -646,6 +665,8 @@ total_rg_avg_stu  %>%
   theme(plot.title.position = "plot",
         panel.grid.major.y = element_blank(),
         panel.grid.minor.y = element_blank()) 
+
+#Same comments as above apply here
 ```
 *TO_DO: format the 'by region' plot, if keeping it*
 *TODO: figure out how to remove 'a's from the legend boxes*
@@ -686,8 +707,9 @@ total_map %>%
 ```
 ```{r ksenia-instruction}
 #Plotting the total Spending on Instruction by state
-instruction2  %>%
-  ggplot(aes(E13_B, fct_reorder(STNAME, E13_B))) +
+
+instruction2 %>% group_by(Region) %>% arrange(desc(-E13_B), .by_group = TRUE) %>% mutate(STNAME=factor(STNAME, levels=STNAME)) %>% 
+  ggplot(aes(E13_B, STNAME)) +
   geom_col(aes(fill = Region),
            alpha = 0.9) +
   scale_fill_OkabeIto() + 
@@ -709,6 +731,8 @@ instruction2  %>%
   theme(plot.title.position = "plot",
         panel.grid.major.y = element_blank(),
         panel.grid.minor.y = element_blank()) 
+
+#These look good, I wanted to see them grouped by region then spending, so I did. Could also arrange regions by mean spending too. It doesn't look as good as the way you originally had it.
 ```
 ```{r ksenia-instruction-perstudent}
 #plotting spending on instruction per student by state 
@@ -786,6 +810,8 @@ instr_map %>%
   theme(legend.position = "bottom",
         plot.title = element_text(hjust = .08),
         plot.subtitle = element_text(hjust = .17))
+
+#Great idea! I feel like the only missing is more range between the majority of states. Maybe restrict the overall y range, so that there's more variation between states, at the expense of not being able to tell the difference between the states on either extreme.
 ```
 ```{r ksenia-bivariate-total-RLA}
 ## biscale map
@@ -863,6 +889,8 @@ ggdraw() +
   draw_label("Bivariate map shwoing the combination of the total spending on education per student and the average demonstrated proficiency in Reading and Langguage Arts", 
              color = "#000000", size = 14, angle = 0, x =0.5, y = 0.92) +
   theme(plot.background = element_rect(fill = "#f3f3f3", color = NA)) 
+
+#This is a really pleasing graph. It's also a really cool idea, but it's hard for me personally to interpret and be able to give meaning to the colors. Maybe you could add topography as a dimenion. The font fits really nicely in most of the states too (not sure how you can resolve the northeast without the usual arrows).
 ```
 We can see that the increased total spending on a student person resulted in increased proficiency test scores in such states Illinois, Ohio, New York, Maryland, Connecticut, New Hampshire, and District of Columbia. Aligning with this trend are the states such as Arizona, Oklahoma, Missouri, Tennessee, Mississippi, and Florida, where the total spend on Education was the lowest relative to other states, and the students demonstrated the lowest scores in RLA. 
 However, this trend is not categorical across all the states. States like Texas, Idaho, Utah, Colorado, and Georgia demonstrated relatively high RLA scores while they spend less per student. At the same time, Maine exhibits the opposite pattern: the high total spending on Education in those states negatively correlates with the students' RLA proficiency. 
@@ -978,6 +1006,8 @@ SpEd2  %>%
   theme(plot.title.position = "plot",
         panel.grid.major.y = element_blank(),
         panel.grid.minor.y = element_blank()) 
+#I like this, maybe think about indicating the mean as a line? Otherwise, I think you've found a very clear compelling format, and I can really only nitpick at this point
+
 ```
 ```{r ksenia-SpEd-bivariate}
 biscale4 <- 
@@ -1434,14 +1464,18 @@ viz3_rla00long_fiscal_2010 %>%
   theme(plot.title.position = "plot",
         panel.grid.major.y = element_blank(),
         panel.grid.minor.y = element_blank(),
-        panel.grid.minor.x = element_blank())  
+        panel.grid.minor.x = element_blank())+
+  theme(text = element_text(size = rel(6)))
+
+#Good thought sorting this
+#I adjusted the font size
 ```
 
 Density ridges of local revenue from property taxes for LEAs by state. One thing I plan to do, if I include this plot, that I didn't get to is sorting the states by mean revenue.
 
 ```{r amy-viz3-densityridges, fig.height=7}
 # Density ridges of local revenue from property taxes across LEAs by state
-viz3_rla00long_fiscal_2010 %>% 
+viz3_rla00long_fiscal_2010 %>% filter(stnam %in% big_states) %>% 
   filter(subgroup == "all")  %>% 
   ggplot(aes(x = locrevtaxes_stu, y = stnam)) +
  	geom_density_ridges(fill = "cornflower blue", color = "white", alpha = .8) +
@@ -1454,6 +1488,8 @@ viz3_rla00long_fiscal_2010 %>%
   theme(plot.title.position = "plot") + 
   scale_x_continuous(expand = c(0, 0)) +
   coord_cartesian(xlim = c(0, 25000))
+
+#Really cool to see the different distributions. Have you thought about doing a subset of states? I added that above, if you want it again
 ```
 
 Scatterplots showing the relationship between types of revenue and average percentage of students scoring at/above proficient on statewide assessments of reading/language arts. Note that I used a log transformation of the x-axis to spread the points out. Without the transformation, the bulk of the points were clustered near the bottom of the range. I think that I could use highlighting and annotations for the lowest and highest points.
@@ -1487,6 +1523,8 @@ viz3_rla00long_fiscal_2010 %>%
   theme(plot.title.position = "plot",
         panel.grid.minor.y = element_blank(),
         panel.grid.minor.x = element_blank())
+
+#Awesome! The only thing I would add is a regression line with equation and R^2.
 ```
 
 Scatterplots faceted by state. 
@@ -1523,6 +1561,8 @@ viz3_rla00long_fiscal_2010 %>%
   theme(plot.title.position = "plot",
         panel.grid.minor.y = element_blank(),
         panel.grid.minor.x = element_blank())
+
+#I think this is a really cool way to show off the distributions. You could convey the relationships on a spaghetti plot, which would be cool too.
 ```
 
 Scatterplots showing the relationship between revenue and outcomes, faceted by subgroup. These are still pretty rough (e.g., labels need work).
@@ -1547,7 +1587,8 @@ viz3_rla00long_fiscal_2010 %>%
 viz3_rla00long_fiscal_2010 %>% 
   ggplot(aes(x = locrevtaxes_stu, y = meanpctprof)) +
   facet_wrap(~subgroup) +
-  geom_point(color = "gray30", fill = "gray30", alpha = .4) +
+  #geom_point(color = "gray30", fill = "gray30", alpha = .4) +
+  stat_density2d() +
   scale_x_log10(labels = scales::dollar) +
   labs(title = "Local Revenue from Property Taxes and RLA Proficiency",
        y = "Approximate Average Percent Proficient",
@@ -1557,6 +1598,8 @@ viz3_rla00long_fiscal_2010 %>%
   theme(plot.title.position = "plot",
         panel.grid.minor.y = element_blank(),
         panel.grid.minor.x = element_blank())
+
+#These still look cool. I think these also would look good as some sort of density chart, so I changed the code to do that. I don't think it's better.
 ```
 
 Playing around with fitting lines. These are still rough. I need to work on the legend and want to try replacing it with annotations. Also could consider changing the color to highlight a specific group or pick a different color palette. 
@@ -1598,6 +1641,8 @@ viz3_rla00long_fiscal_2010 %>%
   theme(plot.title.position = "plot",
         panel.grid.minor.y = element_blank(),
         panel.grid.minor.x = element_blank())
+
+#You guys keep anticipating my comments! This is great, but I would pick out a few states
 ```
 
 Created maps displaying (a) average LEA local revenue in each state and (b) average LEA local revenue from property taxes in each state. I still need to fill in the missing states and want to try out different color palettes.  
@@ -1648,6 +1693,8 @@ viz3_map_df %>%
   labs(title = "Average LEA Local Revenue from Property Taxes",
        caption = "Source: National Center for Education Statistics, 2010") +
   theme(plot.title.position = "plot") 
+
+#Looks great!
 ```
 
 **Other Data Visualizations**
@@ -1659,13 +1706,20 @@ These are some of the preliminary visualizations I did that I don't think I'm mo
 viz3_rla00long_fiscal_2010 %>% 
   filter(subgroup != "all") %>% 
   ggplot(aes(x = locrevtaxes_stu, y = meanpctprof, color = subgroup)) +
-  geom_point(alpha = .4) + 
+  geom_point(alpha = .1) + 
+  geom_smooth(method = lm, 
+              se = F, 
+              aes(x = locrevtaxes_stu, 
+                  y = meanpctprof, 
+                  color = subgroup), size = 2) +
   scale_x_log10(labels = scales::dollar) +
   theme_minimal() +
   labs(title = "Revenue from property tax x meanpctprof, color by subgroup") +
   theme(plot.title.position = "plot",
         panel.grid.minor.y = element_blank(),
         panel.grid.minor.x = element_blank())
+
+#This is cool, but I feel like it's better served by the version above. I tried combining them and messing with the alpha/size. I would probably also restrict the scale on both sides
 ```
 
 Fitted lines for specific states:
@@ -1730,12 +1784,14 @@ viz3_rla00long_fiscal_2010 %>%
 
 ```{r amy-viz3-prelim4}
 # Scatterplot: Relationship between local revenue from property taxes ($ per student) and mean % proficient, faceted by state, color by subgroup 
-viz3_rla00long_fiscal_2010 %>% 
-  filter(subgroup != "all") %>% 
+viz3_rla00long_fiscal_2010 %>% filter(stnam %in% big_states)%>% 
+  filter(subgroup %in% c("cwd","ecd","lep","mam")) %>% 
   ggplot(aes(x = locrev_stu, y = meanpctprof, color = subgroup)) +
   facet_wrap(~stnam) +
   geom_point(alpha = .4) + 
   scale_x_log10(labels = scales::dollar)
+
+#I continue to like this style, but I think this needs both a subset of states and subgroups to be more legible, so I did that
 ```
 
 Scatterplots for each student subgroup between local revenue from property tax and % proficient, faceted by state. The subgroup is indicated in the title. 
@@ -1814,4 +1870,5 @@ viz3_rla00long_fiscal_2010 %>%
   geom_point(alpha = .4) + 
   scale_x_log10(labels = scales::dollar) +
   labs(title = "Limited English Proficiency")
+#Nice charts, I think the log scale combined with the facet wrapping limits interpreting these, unless the goal was to convey general counts, which this does nicely.
 ```
