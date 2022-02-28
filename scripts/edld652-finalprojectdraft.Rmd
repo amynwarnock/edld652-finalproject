@@ -7,6 +7,8 @@ output:
     toc: true
     toc_float: true
     code_folding: hide
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -948,8 +950,8 @@ ggdraw() +
 ```
 *TODO: do somth with Wyoming and Alabama (no data for them) *
 
-We can observe the general tendency of positive correlation between Expenditure on Instruction and MAth proficiency. In Nebraska, New York, Pennsylvania, Maryland, District of Columbia, and Connecticut, increased spending on instruction results in increased math scores. In Oregon, Montana, Michigan, Indiana, and Ohia, the avergae spending on instruction matches the average math scores. Arizona, Oklahoma, New Mexico, Tennessee, Mississippi, report the lowest total spend on Instruction, which correlates with the relatively low demonstrated proficiency in math by students of those states . 
-Interestingly, Texas and Idaho that demonstrated the high RLA scores despite small total spending, exhibit the same pattern here: hogh math scores despite low spending on Instruction. Other states that show the same pattern with instructional spending are Colorado, South Dakota, and North Carolina. On the flip side, Maine again exhibits the opposite pattern: the high instructional spending negatively correlates with the students' math proficiency. Here, the same trend is observed in Minnesota and Hawaii. 
+We can observe the general tendency of positive correlation between Expenditure on Instruction and Math proficiency. In Nebraska, New York, Pennsylvania, Maryland, District of Columbia, and Connecticut, increased spending on instruction results in increased math scores. In Oregon, Montana, Michigan, Indiana, and Ohia, the avergae spending on instruction matches the average math scores. Arizona, Oklahoma, New Mexico, Tennessee, Mississippi, report the lowest total spend on Instruction, which correlates with the relatively low demonstrated proficiency in math by students of those states. 
+Interestingly, Texas and Idaho that demonstrated the high RLA scores despite small total spending, exhibit the same pattern here: high math scores despite low spending on Instruction. Other states that show the same pattern with instructional spending are Colorado, South Dakota, and North Carolina. On the flip side, Maine again exhibits the opposite pattern: the high instructional spending negatively correlates with the students' math proficiency. Here, the same trend is observed in Minnesota and Hawaii. 
 
 *TODO: do the comaprison of instruction spendings for rla scores*
 
@@ -1815,3 +1817,47 @@ viz3_rla00long_fiscal_2010 %>%
   scale_x_log10(labels = scales::dollar) +
   labs(title = "Limited English Proficiency")
 ```
+
+
+
+
+
+### reviewer comments (Diana):
+
+--
+#### Areas of Strength:
+  
+LOTS of strength here: extensive data-wrangling, impeccable organization, effective visualizations, I could go on but it's very impressive already.
+
+#### Things I learned:
+
+I really liked how the 2nd visualizations had values embedded at the end of each bar for the continuous variables--will definitely incorporate this into my own code!
+
+
+#### Comments for 1st Visualization:
+
+Love the use of the viridis palette on the density plot, and the facet_wrap by group is effective as well. Also enjoy the 3rd plot with groups represented by region--and I wonder how this plot would look with flipped axes?
+
+The main comment is the crowded y-axes on the first plot. I wonder if there is a way to extend these axes within the plot view so that they print normally when knitted. Alternatively, maybe you could do a subset of states (separate by region) and create multiple geom_point() graphs with the same facet_wrap, but fewer states per group.
+
+The map visuals are absolutely striking, and effective at communicating quickly (with little cognitive load for the reader) the point you are making. Well done!
+
+
+#### Comments for 2nd Visualization
+
+Again, fantastic data prep/data wrangling here. Really cool plot, I love the addition of yearly spending embedded within the visual at the end of each bar. However, maybe it would work a little better if these values were only added for every 5th or every 10th state. It's also fascinating that the west appears as though it spends the greatest when looking at the total spending by state graph, but then looking at the total spending by region it is last in spending--it might be worth communicating this as it's one of the more striking things about these plots. Also adding a bit of color to the 'spending by region' plot (in the same colors as spending by state) would work well.
+
+Love all of the map plots, especially the 'total spending on instruction' map!
+
+The 'total spending on textbook' is great; I might change this to plural (textbooks)--also, it doesn't appear as though every state is included in this graph, is this due to missing data?
+
+#### Comments for 3rd Visualization
+
+All really cool plots-especially like the spaghetti plot for local revenue from tax + RLA proficiency (some helpful labels could also be added here)
+
+-adding more color throughout, and more grouping variables (like region) would make these plots stand out even more.
+
+
+#### A few 'best practice' comments:
+
+-Fixed a few typos in paragraph starting at line 953
