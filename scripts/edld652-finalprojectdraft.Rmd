@@ -67,6 +67,8 @@ How do high school students’ subgroup makeup (i.e., Race/ethnicity, Male vs. F
 
 df <- full_join(mathsch_10, rlasch_10) 
 
+#I'm not sure if you're also getting these errors but it looks like there are some parsing errors created in the next steps
+
 df2 <- df %>% 
 	mutate(ECDmath = gsub("[^0-9.-]", "", ECD_MTHHSPCTPROF),
 				 ECDrla = gsub("[^0-9.-]", "", ECD_RLAHSPCTPROF),
@@ -172,6 +174,8 @@ df_pivot %>%
 			 y = 'State') +
 	theme_minimal()
 
+## Super interesting and informative plot! It might help to have the axis labels tiled a bit to aid readability. My eye is drawn to the difference in the homeless group and I wonder how much of those results are impacted by the (presumably) lower sample size. It could be helpful to give the median sample size for each plot to get a bit more grounding (but I do hesitate to suggest adding more information since this is already so dense)
+
 
 #Plot showing mean test score by subgroup and test by state
 
@@ -202,6 +206,7 @@ ggplot(df_pivot, aes(x = mean_pct,
 			 x = 'Mean percent proficient',
 			 y = 'Group') 
 
+## I think this is my vote for best plot so far - it manages to convery a lot of the information the others do but with much more simplicity. I really got the picture by looking at this. It could be even simpler if you aggregate over the entire country
 
 #Trying to figure out how to show test scores separated by Gender but the plot won't create separate values for each
 
@@ -219,6 +224,8 @@ df_pivot %>%
 			 x = 'Mean percent proficient',
 			 y = 'State')
 
+
+# Beautiful plot, really dig the aesthetics of this one. However, I'm not sure if I follow what's going on here based on the title - particularly the "by gender" portion. My understanding based on the code is that this is just all of the data before being separated into economic/other subgroups? I might not be fully comprehending this but it seems to me the title could just be "Mean percentage of students that scored at or above proficient" 
 ```
 
 ```{r rebecca-maps}
@@ -282,6 +289,8 @@ ggplot(data = dat2, aes(geometry = geometry,
 			 caption = "Source: U.S. Department of Education") +
 	theme_void()
 
+
+## Very cool additional representations of the data! For what it's worth, I think the ridgeline plots convey this information the most succinctly and clearly. If you want to capture all of these different groups I might suggest a series of those plots facet-gridded like these geographic plots so you can have all of the subgroups together
 ```
 
 ### Data Visualization 2 
@@ -646,6 +655,11 @@ total_rg_avg_stu  %>%
   theme(plot.title.position = "plot",
         panel.grid.major.y = element_blank(),
         panel.grid.minor.y = element_blank()) 
+
+
+## I think the column plots do a great job of showing the overall instruction spending. In my opinion, the second to last one is probably the best - although the annotation is cool, the line showing the mean is kind of hard to follow so I'm leaning towards the simplicity of the other. 
+
+## As for the last group of plots, I think it's a really cool use of the colors that they change along two dimensions! The only thing I'd say to improve these is to change their size or the font size so it all fits on the plot
 ```
 *TO_DO: format the 'by region' plot, if keeping it*
 *TODO: figure out how to remove 'a's from the legend boxes*
@@ -683,6 +697,8 @@ total_map %>%
   theme(legend.position = "bottom",
         plot.title = element_text(hjust = .08),
         plot.subtitle = element_text(hjust = .17))
+
+
 ```
 ```{r ksenia-instruction}
 #Plotting the total Spending on Instruction by state
@@ -1454,6 +1470,8 @@ viz3_rla00long_fiscal_2010 %>%
   theme(plot.title.position = "plot") + 
   scale_x_continuous(expand = c(0, 0)) +
   coord_cartesian(xlim = c(0, 25000))
+
+## Really great way of visualizing this! This is my pick for the best way to visualize this data
 ```
 
 Scatterplots showing the relationship between types of revenue and average percentage of students scoring at/above proficient on statewide assessments of reading/language arts. Note that I used a log transformation of the x-axis to spread the points out. Without the transformation, the bulk of the points were clustered near the bottom of the range. I think that I could use highlighting and annotations for the lowest and highest points.
@@ -1513,7 +1531,8 @@ viz3_rla00long_fiscal_2010 %>%
   filter(subgroup == "all") %>% 
   ggplot(aes(x = locrevtaxes_stu, y = meanpctprof)) +
   facet_wrap(~stnam) +
-  geom_point(color = "gray30", fill = "gray30", alpha = .4) + 
+  geom_point(color = "gray30", fill = "gray30", alpha = .4) +
+  geom_smooth(method = "lm", se = FALSE)+
   scale_x_log10(labels = scales::dollar) +
   labs(title = "Local Revenue from Property Taxes and RLA Proficiency",
        y = "Approximate Average Percent Proficient",
@@ -1523,6 +1542,8 @@ viz3_rla00long_fiscal_2010 %>%
   theme(plot.title.position = "plot",
         panel.grid.minor.y = element_blank(),
         panel.grid.minor.x = element_blank())
+
+# The faceted graphs are a real improvement over the main scatterplot of all the data. I'd be curious to see this with linear models fit (as I edited above, but I feel like this could be cleaned up a bit)
 ```
 
 Scatterplots showing the relationship between revenue and outcomes, faceted by subgroup. These are still pretty rough (e.g., labels need work).
